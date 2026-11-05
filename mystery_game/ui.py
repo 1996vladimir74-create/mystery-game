@@ -34,12 +34,15 @@ class SettingsWindow(tk.Toplevel):
         ttk.Label(form,text="Громкость музыки").pack(anchor="w",pady=(14,2))
         self.volume=tk.DoubleVar(value=float(self.settings.get("music_volume",.35)))
         ttk.Scale(form,from_=0,to=1,variable=self.volume).pack(fill="x")
+        ttk.Label(form,text="Размер текста").pack(anchor="w",pady=(12,2))
+        self.font_scale=tk.DoubleVar(value=float(self.settings.get("font_scale",1.0)))
+        ttk.Scale(form,from_=.8,to=1.4,variable=self.font_scale).pack(fill="x")
         ttk.Label(form,text="Сложность подсказок").pack(anchor="w",pady=(14,2))
         ttk.Combobox(form,textvariable=self.diff,values=("easy","normal","hard"),state="readonly").pack(fill="x")
         ttk.Button(self,text="Сохранить настройки",command=self.save).pack(pady=16)
     def save(self):
         self.settings.update(sound_enabled=self.sound.get(),music_enabled=self.music.get(),
-          animations=self.anim.get(),music_volume=self.volume.get(),difficulty=self.diff.get())
+          animations=self.anim.get(),music_volume=self.volume.get(),font_scale=self.font_scale.get(),difficulty=self.diff.get())
         self.on_save(self.settings); self.destroy()
 
 class EditorWindow(tk.Toplevel):
@@ -87,18 +90,18 @@ class MysteryGameApp(tk.Tk):
         self.board=ttk.Frame(root,style="Background.TFrame",padding=28)
         for frame in (self.menu,self.game,self.board): frame.grid(row=0,column=0,sticky="nsew")
         self._build_menu(); self._build_game(); self._build_board()
-        self.show("menu"); self.audio.music(); self.protocol("WM_DELETE_WINDOW",self.on_close)
+        self._animation_job=None; self._animation_phase=False; self.show("menu"); self.audio.music(); self.protocol("WM_DELETE_WINDOW",self.on_close)
 
     def _styles(self):
         s=ttk.Style(self)
         try:s.theme_use("clam")
         except tk.TclError:pass
-        s.configure(".",font=("Arial",11))
+        scale=float(getattr(self,"settings",{}).get("font_scale",1.0)); s.configure(".",font=("Arial",max(9,int(11*scale))))
         s.configure("Background.TFrame",background="#18212a")
         s.configure("TFrame",background="#202d38")
         s.configure("TLabel",background="#202d38",foreground="#f2eadf")
-        s.configure("Title.TLabel",font=("Times New Roman",22,"bold"),background="#18212a",foreground="#e8c99a")
-        s.configure("Hero.TLabel",font=("Times New Roman",30,"bold"),background="#18212a",foreground="#f2eadf")
+        s.configure("Title.TLabel",font=("Times New Roman",max(18,int(22*scale)),"bold"),background="#18212a",foreground="#e8c99a")
+        s.configure("Hero.TLabel",font=("Times New Roman",max(22,int(30*scale)),"bold"),background="#18212a",foreground="#f2eadf")
         s.configure("Eyebrow.TLabel",font=("Courier New",13,"bold"),background="#18212a",foreground="#c99b68")
         s.configure("Subtitle.TLabel",font=("Georgia",12),background="#18212a",foreground="#c7c0b6")
         s.configure("Footer.TLabel",background="#18212a",foreground="#a9a39a")
@@ -118,7 +121,7 @@ class MysteryGameApp(tk.Tk):
         for label,cmd in (("Новое расследование",self.new_game),("Доска закрытых дел",self.show_board),
                           ("Редактор расследований",self.open_editor),("Настройки",self.open_settings),("Выход",self.on_close)):
             ttk.Button(box,text=label,command=cmd).pack(fill="x",pady=7,ipady=7)
-        ttk.Label(self.menu,text="CASE FILE  •  PRIVATE INVESTIGATION",style="Footer.TLabel").pack(side="bottom",pady=8)
+        self.menu_status=ttk.Label(self.menu,text="CASE FILE  •  PRIVATE INVESTIGATION",style="Footer.TLabel"); self.menu_status.pack(side="bottom",pady=8)
 
     def _build_game(self):
         head=ttk.Frame(self.game,style="Background.TFrame"); head.pack(fill="x")
@@ -152,9 +155,26 @@ class MysteryGameApp(tk.Tk):
 
     def show(self,name):
         {"menu":self.menu,"game":self.game,"board":self.board}[name].tkraise()
-        if name=="menu": self.continue_btn.configure(state="normal" if self.save_manager.latest_incomplete() else "disabled")
+        if name=="menu":
+            self.continue_btn.configure(state="normal" if self.save_manager.latest_incomplete() else "disabled")
+            self._start_menu_animation()
+        else: self._stop_menu_animation()
         if name=="game" and self.active_save:self.refresh_game()
         if name=="board":self.refresh_board()
+
+    def _start_menu_animation(self):
+        self._stop_menu_animation()
+        if self.settings.get("animations", True): self._animate_menu()
+    def _animate_menu(self):
+        if not self.winfo_exists() or not self.settings.get("animations", True): return
+        self._animation_phase = not self._animation_phase
+        self.menu_status.configure(foreground="#e8c99a" if self._animation_phase else "#a9a39a")
+        self._animation_job = self.after(1100, self._animate_menu)
+    def _stop_menu_animation(self):
+        if self._animation_job is not None:
+            try: self.after_cancel(self._animation_job)
+            except tk.TclError: pass
+            self._animation_job = None
 
     def get_case(self):
         return next(c for c in self.cases if c["id"]==self.active_save["case_id"])
@@ -196,7 +216,7 @@ class MysteryGameApp(tk.Tk):
         if normalize_answer(raw) not in valid:return False
         self.active_save.setdefault("inventory",[]).append({"name":clue.get("item_name",f"Улика №{i+1}"),
           "icon":clue.get("icon","🔎"),"description":clue.get("item_description",clue.get("story",""))})
-        self.active_save["current_clue"]+=1
+        self.active_save["current_clue"]+=1; self.active_save["hints_used"]=0
         if self.active_save["current_clue"]>=len(case["clues"]):self.finish_case()
         else:self.persist()
         return True
@@ -247,7 +267,7 @@ class MysteryGameApp(tk.Tk):
     def show_board(self):self.show("board")
     def open_settings(self):SettingsWindow(self,self.settings,self.update_settings)
     def update_settings(self,settings):
-        self.settings=settings;self.save_manager.save_settings(settings);self.audio.apply(settings)
+        self.settings=settings;self.save_manager.save_settings(settings);self.audio.apply(settings);self._styles()
         if settings.get("music_enabled"):self.audio.music()
         else:self.audio.stop()
     def open_editor(self):EditorWindow(self,self.data_manager,self.reload_cases)
@@ -255,4 +275,4 @@ class MysteryGameApp(tk.Tk):
         try:self.cases=self.data_manager.load_cases()
         except DataError as exc:messagebox.showerror("Ошибка",str(exc),parent=self)
     def on_close(self):
-        self.persist();self.audio.close();self.destroy()
+        self.persist();self._stop_menu_animation();self.audio.close();self.destroy()
