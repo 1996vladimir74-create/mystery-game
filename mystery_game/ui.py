@@ -209,7 +209,7 @@ class MysteryGameApp(tk.Tk):
         if len(saves)==1:
             item=saves[0]
         else:
-            labels="\\n".join(f"{i+1}. {x['name']} — {x.get('case_title',x['case_id'])} — {x.get('updated_at','')[:16]}" for i,x in enumerate(saves))
+            labels="\n".join(f"{i+1}. {x['name']} — {x.get('case_title',x['case_id'])} — {x.get('updated_at','')[:16]}" for i,x in enumerate(saves))
             choice=simpledialog.askinteger("Продолжить расследование",f"Выбери сохранение:\\n{labels}",
                                            minvalue=1,maxvalue=len(saves),parent=self)
             if choice is None:return
