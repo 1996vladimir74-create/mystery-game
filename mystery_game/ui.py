@@ -194,11 +194,24 @@ class MysteryGameApp(tk.Tk):
         self.active_save["case_title"]=case["title"]; self.persist(); self.show("game")
 
     def continue_game(self):
-        item=self.save_manager.latest_incomplete()
-        if not item:messagebox.showinfo("Нет сохранений","Нет незавершённых расследований.",parent=self);return
+        saves=[item for item in self.save_manager.list_saves() if not item.get("completed")]
+        if not saves:
+            messagebox.showinfo("Нет сохранений","Нет незавершённых расследований.",parent=self)
+            return
+        if len(saves)==1:
+            item=saves[0]
+        else:
+            labels="\\n".join(f"{i+1}. {x['name']} — {x.get('case_title',x['case_id'])} — {x.get('updated_at','')[:16]}" for i,x in enumerate(saves))
+            choice=simpledialog.askinteger("Продолжить расследование",f"Выбери сохранение:\\n{labels}",
+                                           minvalue=1,maxvalue=len(saves),parent=self)
+            if choice is None:return
+            item=saves[choice-1]
         try:
-            self.active_save=self.save_manager.load(item["id"]); self.get_case(); self.show("game")
-        except (SaveError,StopIteration) as exc:messagebox.showerror("Ошибка сохранения",str(exc),parent=self)
+            self.active_save=self.save_manager.load(item["id"])
+            self.get_case()
+            self.show("game")
+        except (SaveError,StopIteration) as exc:
+            messagebox.showerror("Ошибка сохранения",str(exc),parent=self)
 
     def refresh_game(self):
         case=self.get_case(); i=self.active_save["current_clue"]
