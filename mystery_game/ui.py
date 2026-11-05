@@ -245,13 +245,27 @@ class MysteryGameApp(tk.Tk):
         return True
 
     def check_answer(self):
-        if not self.answer.get().strip():messagebox.showinfo("Ответ","Сначала введи ответ.",parent=self);return
+        if not self.answer.get().strip():
+            messagebox.showinfo("Ответ", "Сначала введи ответ.", parent=self)
+            return
+        clue_index = self.active_save["current_clue"]
+        clue = self.get_case()["clues"][clue_index]
         if self.submit_answer(self.answer.get()):
             self.audio.effect("clue.wav")
-            if self.active_save and not self.active_save.get("completed"):self.refresh_game()
+            if self.active_save and not self.active_save.get("completed"):
+                discovery = clue.get("discovery_message") or (
+                    f"Улика «{clue.get('item_name', 'Найденный предмет')}» добавлена в инвентарь.\n\n"
+                    f"{clue.get('story', 'Расследование продолжается.')}"
+                )
+                messagebox.showinfo("Улика найдена", discovery, parent=self)
+                self.refresh_game()
         else:
             self.audio.effect("wrong.wav")
-            messagebox.showwarning("Пока неверно","Попробуй другую формулировку или воспользуйся подсказкой.",parent=self)
+            messagebox.showwarning(
+                "Пока неверно",
+                "Попробуй другую формулировку или воспользуйся подсказкой.",
+                parent=self
+            )
 
     def show_hint(self):
         clue=self.get_case()["clues"][self.active_save["current_clue"]]; hints=clue.get("hints",[])
