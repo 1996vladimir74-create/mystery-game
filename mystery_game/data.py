@@ -1,4 +1,5 @@
 import json
+import shutil
 
 DEFAULT_CASE = [
   {
@@ -16,7 +17,12 @@ DEFAULT_CASE = [
   }
 ]
 
-def ensure_default(path):
+def ensure_default(path, bundled_path=None):
+    """Create editable user data, preserving bundled custom cases on first launch."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    if not path.exists():
-        path.write_text(json.dumps(DEFAULT_CASE, ensure_ascii=False, indent=2), encoding="utf-8")
+    if path.exists():
+        return
+    if bundled_path and bundled_path.exists() and bundled_path.resolve() != path.resolve():
+        shutil.copy2(bundled_path, path)
+        return
+    path.write_text(json.dumps(DEFAULT_CASE, ensure_ascii=False, indent=2), encoding="utf-8")
