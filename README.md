@@ -1,5 +1,28 @@
-# Mystery Game
+# Mystery Game 2.0
 
-A desktop detective mystery game built with Python and Tkinter.
+Модульная desktop-игра в жанре детективного квеста на Python + Tkinter.
 
-The initial application is being assembled in a modular structure. See `docs/TESTING.md` for the verification plan.
+## Возможности
+- главное меню, новое дело и продолжение незавершённого расследования;
+- автосохранение прогресса и отдельные слоты сохранений;
+- проверка нескольких вариантов ответа без учёта регистра и пунктуации;
+- подсказки с уровнями сложности;
+- инвентарь найденных улик с описаниями;
+- доска закрытых дел и финальное письмо;
+- настройки звука, музыки, анимаций и сложности;
+- встроенный JSON-редактор расследований;
+- необязательная музыка и звуковые эффекты через pygame-ce.
+
+## Запуск
+Python 3.10+ и Tkinter:
+```bash
+python main.py
+```
+Тесты:
+```bash
+python -m unittest discover -s tests -v
+```
+
+Все игровые данные находятся в `data/investigations.json`. Аудио добавляется в `assets/sounds/` (music.ogg, clue.wav, wrong.wav, success.wav). Без pygame и аудиофайлов игра остаётся работоспособной.
+
+Подробный ручной чек-лист: [docs/TESTING.md](docs/TESTING.md).

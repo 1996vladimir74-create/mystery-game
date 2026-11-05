@@ -1,0 +1,3 @@
+# Core game: Python standard library + Tkinter.
+# Optional audio support:
+pygame-ce>=2.5.0
