@@ -14,7 +14,7 @@ VALID_CASE = {
 
 class NormalizeAnswerTests(unittest.TestCase):
     def test_ignores_case_spaces_punctuation_and_yo(self):
-        self.assertEqual(normalize_answer("  ЁЛКА, КЛЮЧ! "), "елкакюч")
+        self.assertEqual(normalize_answer("  ЁЛКА, КЛЮЧ! "), "елкаключ")
 
     def test_empty_input_is_empty(self):
         self.assertEqual(normalize_answer(" ... "), "")
