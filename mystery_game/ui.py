@@ -78,7 +78,7 @@ class MysteryGameApp(tk.Tk):
         super().__init__(); self.title(APP_TITLE); self.geometry(WINDOW_SIZE); self.minsize(820,600)
         self.configure(bg="#18212a")
         for folder in (DATA_DIR,ASSETS_DIR,SOUNDS_DIR,SAVES_DIR): folder.mkdir(parents=True,exist_ok=True)
-        ensure_default(INVESTIGATIONS_FILE)
+        ensure_default(INVESTIGATIONS_FILE, BUNDLED_INVESTIGATIONS_FILE)
         self.data_manager=DataManager(INVESTIGATIONS_FILE)
         try: self.cases=self.data_manager.load_cases()
         except DataError as exc:
