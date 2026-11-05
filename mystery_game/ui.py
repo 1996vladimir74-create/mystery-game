@@ -16,6 +16,9 @@ class InventoryWindow(tk.Toplevel):
             card=ttk.LabelFrame(body,text=f"{item.get('icon','•')}  {item.get('name','Улика')}",padding=10)
             card.pack(fill="x",pady=6)
             ttk.Label(card,text=item.get("description","Описание отсутствует."),wraplength=480).pack(anchor="w")
+            if item.get("story"):
+                ttk.Label(card,text="Из материалов дела:",font=("Arial",9,"bold")).pack(anchor="w",pady=(8,2))
+                ttk.Label(card,text=item["story"],wraplength=480).pack(anchor="w")
         ttk.Button(self,text="Закрыть",command=self.destroy).pack(pady=14)
 
 class SettingsWindow(tk.Toplevel):
@@ -177,7 +180,12 @@ class MysteryGameApp(tk.Tk):
             self._animation_job = None
 
     def get_case(self):
-        return next(c for c in self.cases if c["id"]==self.active_save["case_id"])
+        if not self.active_save:
+            raise SaveError("Нет активного сохранения.")
+        case = next((c for c in self.cases if c["id"] == self.active_save.get("case_id")), None)
+        if case is None:
+            raise SaveError("Расследование из сохранения отсутствует в текущем файле данных. Верни прежний JSON-файл или выбери другое сохранение.")
+        return case
 
     def new_game(self):
         choices=[c for c in self.cases if not c.get("locked",False)]
@@ -210,7 +218,7 @@ class MysteryGameApp(tk.Tk):
             self.active_save=self.save_manager.load(item["id"])
             self.get_case()
             self.show("game")
-        except (SaveError,StopIteration) as exc:
+        except SaveError as exc:
             messagebox.showerror("Ошибка сохранения",str(exc),parent=self)
 
     def refresh_game(self):
@@ -226,9 +234,11 @@ class MysteryGameApp(tk.Tk):
     def submit_answer(self,raw):
         case=self.get_case(); i=self.active_save["current_clue"]; clue=case["clues"][i]
         valid={normalize_answer(x) for x in clue["answers"]}
-        if normalize_answer(raw) not in valid:return False
+        normalized = normalize_answer(raw)
+        if not normalized or normalized not in valid:return False
         self.active_save.setdefault("inventory",[]).append({"name":clue.get("item_name",f"Улика №{i+1}"),
-          "icon":clue.get("icon","🔎"),"description":clue.get("item_description",clue.get("story",""))})
+          "icon":clue.get("icon","🔎"),"description":clue.get("item_description",clue.get("story","")),
+          "story":clue.get("story",""),"clue_number":i+1})
         self.active_save["current_clue"]+=1; self.active_save["hints_used"]=0
         if self.active_save["current_clue"]>=len(case["clues"]):self.finish_case()
         else:self.persist()
