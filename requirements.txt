@@ -1,3 +1,2 @@
-# Core game: Python standard library + Tkinter.
-# Optional audio support:
-pygame-ce>=2.5.0
+# No third-party packages are required to run the game.
+# Tkinter is included with most standard Python distributions.
