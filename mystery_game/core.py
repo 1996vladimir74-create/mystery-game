@@ -42,7 +42,7 @@ class DataManager:
                 raise DataError(f"Улика №{i}: поле task должно содержать текст.")
             answers = clue.get("answers")
             if (not isinstance(answers, list) or not answers
-                    or any(not isinstance(x, str) or not x.strip() for x in answers)):
+                    or any(not isinstance(x, str) or not x.strip() or not normalize_answer(x) for x in answers)):
                 raise DataError(f"Улика №{i}: answers должен быть непустым списком строк.")
             hints = clue.get("hints", [])
             if not isinstance(hints, list) or any(not isinstance(x, str) for x in hints):
