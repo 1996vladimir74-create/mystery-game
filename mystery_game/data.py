@@ -59,7 +59,8 @@ class DLCManager:
             if not isinstance(dlc.get("title"), str) or not dlc["title"].strip():
                 raise DataError(f"У DLC «{dlc['id']}» должно быть название.")
             quests = dlc.get("quests")
-            if not isinstance(quests, list) or not quests or any(q not in case_ids for q in quests):
+            if (not isinstance(quests, list) or not quests
+                    or any(not isinstance(q, str) or q not in case_ids for q in quests)):
                 raise DataError(f"У DLC «{dlc['title']}» должен быть непустой список существующих ID расследований.")
             if len(quests) != len(set(quests)):
                 raise DataError(f"В DLC «{dlc['title']}» один квест указан несколько раз.")
@@ -74,6 +75,7 @@ class DLCManager:
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")
         try:
             tmp.write_text(json.dumps(dlcs, ensure_ascii=False, indent=2), encoding="utf-8")
+            DLCManager(tmp, self.cases_provider).load_dlcs()
             tmp.replace(self.path)
         except OSError as exc:
             tmp.unlink(missing_ok=True)
