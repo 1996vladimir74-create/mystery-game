@@ -1,0 +1,11 @@
+[
+  {
+    "id": "first-case",
+    "title": "Дело №1 — Тайна посылки",
+    "description": "Первое расследование ANASTASIA DAYS.",
+    "added_at": "2026-11-06T00:00:00",
+    "quests": [
+      "mystical-package"
+    ]
+  }
+]
