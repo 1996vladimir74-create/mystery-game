@@ -30,7 +30,7 @@ class InventoryWindow(tk.Toplevel):
 
 class SettingsWindow(tk.Toplevel):
     def __init__(self,parent,settings,on_save):
-        super().__init__(parent); self.title("Настройки"); self.geometry("440x430")
+        super().__init__(parent); self.title("Настройки"); self.geometry("460x520")
         self.transient(parent); self.settings=dict(settings); self.on_save=on_save
         ttk.Label(self,text="НАСТРОЙКИ",style="Title.TLabel").pack(pady=16)
         form=ttk.Frame(self,padding=20); form.pack(fill="both",expand=True)
@@ -106,7 +106,7 @@ class DLCEditorWindow(tk.Toplevel):
         quests=[value.strip() for value in quest_text.split(",") if value.strip()]
         dlcs=json.loads(self.text.get("1.0","end-1c"))
         dlcs.insert(0,{
-            "id":"dlc-"+datetime.now().strftime("%Y%m%d%H%M%S"),
+            "id":"dlc-"+datetime.now().strftime("%Y%m%d%H%M%S%f"),
             "title":title.strip(),"description":description.strip(),
             "added_at":datetime.now().isoformat(timespec="seconds"),"quests":quests
         })
@@ -298,7 +298,6 @@ class MysteryGameApp(tk.Tk):
     def show(self,name):
         {"menu":self.menu,"game":self.game,"board":self.board}[name].tkraise()
         if name=="menu":
-            self.continue_btn.configure(state="normal" if self.save_manager.latest_incomplete() else "disabled")
             self._start_menu_animation()
         else: self._stop_menu_animation()
         if name=="game" and self.active_save:self.refresh_game()
@@ -310,7 +309,6 @@ class MysteryGameApp(tk.Tk):
     def _animate_menu(self):
         if not self.winfo_exists() or not self.settings.get("animations", True): return
         self._animation_phase = not self._animation_phase
-        self.menu_status.configure(foreground="#e8c99a" if self._animation_phase else "#a9a39a")
         self._animation_job = self.after(1100, self._animate_menu)
     def _stop_menu_animation(self):
         if self._animation_job is not None:
@@ -398,10 +396,11 @@ class MysteryGameApp(tk.Tk):
             messagebox.showinfo("Ответ", "Сначала введи ответ.", parent=self)
             return
         clue_index = self.active_save["current_clue"]
+        original_case_id = self.active_save.get("case_id")
         clue = self.get_case()["clues"][clue_index]
         if self.submit_answer(self.answer.get()):
             self.audio.effect("clue.wav")
-            if self.active_save and not self.active_save.get("completed"):
+            if self.active_save and not self.active_save.get("completed") and self.active_save.get("case_id")==original_case_id:
                 discovery = clue.get("discovery_message") or (
                     f"Улика «{clue.get('item_name', 'Найденный предмет')}» добавлена в инвентарь.\n\n"
                     f"{clue.get('story', 'Расследование продолжается.')}"
