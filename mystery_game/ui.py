@@ -262,9 +262,9 @@ class MysteryGameApp(tk.Tk):
         if i>=len(case["clues"]): self.finish_case(); return
         clue=case["clues"][i]; self.case_title.configure(text=case["title"])
         self._display_image(self.case_background,case.get("background_image"),(1000,700),"case_background")
-        self._display_image(self.case_art,case.get("cover_image"),(720,150),"case_art")
-        self._display_image(self.clue_art,clue.get("illustration_image"),(320,190),"clue_art")
-        self._display_image(self.document_art,clue.get("document_image") or case.get("document_image"),(320,190),"document_art")
+        self._display_image(self.case_art,case.get("cover_image"),(720,90),"case_art")
+        self._display_image(self.clue_art,clue.get("illustration_image"),(300,120),"clue_art")
+        self._display_image(self.document_art,clue.get("document_image") or case.get("document_image"),(300,120),"document_art")
         self.progress.configure(text=f"УЛИКА {i+1} ИЗ {len(case['clues'])}")
         self.task.configure(text=clue["task"]); self.story.configure(text=clue.get("story",""))
         self.answer.set(""); self.hint_label.configure(text="")
