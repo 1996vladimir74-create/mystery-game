@@ -1,3 +1,5 @@
 # Core game: Python 3.10+ with Tkinter (usually included with Python).
+# Image personalization (PNG/JPG/WEBP/GIF/BMP):
+Pillow>=10.0
 # Optional audio support (music and sound effects):
 pygame-ce>=2.5
