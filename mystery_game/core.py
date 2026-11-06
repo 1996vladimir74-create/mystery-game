@@ -176,10 +176,14 @@ class SaveManager:
     def completed_cases(self):
         unique = {}
         for item in self.list_saves():
-            if item.get("completed"):
-                unique[item["case_id"]] = {
-                    "case_id": item["case_id"],
-                    "name": item.get("case_title", item["name"]),
+            if not item.get("completed"):
+                continue
+            ids = item.get("completed_case_ids") or [item["case_id"]]
+            titles = item.get("completed_case_titles") or {}
+            for case_id in ids:
+                unique[case_id] = {
+                    "case_id": case_id,
+                    "name": titles.get(case_id, item.get("case_title", item["name"])),
                     "completed_at": item.get("completed_at", item.get("updated_at", ""))
                 }
         return sorted(unique.values(), key=lambda x: x["completed_at"], reverse=True)
