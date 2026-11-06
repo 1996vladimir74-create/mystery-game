@@ -4,18 +4,25 @@ from datetime import datetime
 from .config import *
 from .core import DataManager, DataError, SaveManager, SaveError, AudioManager, normalize_answer
 from .data import ensure_default
+from .images import ImageAssets
+import json
 
 class InventoryWindow(tk.Toplevel):
-    def __init__(self, parent, inventory):
+    def __init__(self, parent, inventory, image_assets=None):
         super().__init__(parent); self.title("Инвентарь улик"); self.geometry("560x440")
-        self.configure(bg="#18212a"); self.transient(parent)
+        self.configure(bg="#18212a"); self.transient(parent); self.image_assets=image_assets
         ttk.Label(self, text="СОБРАННЫЕ УЛИКИ", style="Title.TLabel").pack(pady=18)
         body=ttk.Frame(self,padding=16); body.pack(fill="both",expand=True)
         if not inventory: ttk.Label(body,text="Пока нет найденных предметов.").pack(pady=25)
         for item in inventory:
             card=ttk.LabelFrame(body,text=f"{item.get('icon','•')}  {item.get('name','Улика')}",padding=10)
             card.pack(fill="x",pady=6)
-            ttk.Label(card,text=item.get("description","Описание отсутствует."),wraplength=480).pack(anchor="w")
+            media=ttk.Frame(card); media.pack(fill="x",anchor="w")
+            image_path=item.get("item_image")
+            photo=self.image_assets.load(image_path,(150,150)) if self.image_assets and image_path else None
+            if photo:
+                image_label=ttk.Label(media,image=photo); image_label.image=photo; image_label.pack(side="left",padx=(0,12),pady=4)
+            ttk.Label(media,text=item.get("description","Описание отсутствует."),wraplength=310,justify="left").pack(side="left",anchor="n",pady=4)
             if item.get("story"):
                 ttk.Label(card,text="Из материалов дела:",font=("Arial",9,"bold")).pack(anchor="w",pady=(8,2))
                 ttk.Label(card,text=item["story"],wraplength=480).pack(anchor="w")
@@ -84,6 +91,7 @@ class MysteryGameApp(tk.Tk):
         except DataError as exc:
             messagebox.showerror("Ошибка данных",str(exc)); self.destroy(); raise
         self.save_manager=SaveManager(SAVES_DIR); self.settings=self.save_manager.load_settings()
+        self.theme=self._load_theme(); self.image_assets=ImageAssets(ASSETS_DIR)
         self.audio=AudioManager(SOUNDS_DIR,self.settings); self.active_save=None
         self._styles()
         root=ttk.Frame(self,style="Background.TFrame"); root.pack(fill="both",expand=True)
@@ -95,27 +103,48 @@ class MysteryGameApp(tk.Tk):
         self._build_menu(); self._build_game(); self._build_board()
         self._animation_job=None; self._animation_phase=False; self.show("menu"); self.audio.music(); self.protocol("WM_DELETE_WINDOW",self.on_close)
 
+    def _load_theme(self):
+        defaults={"colors":{},"fonts":{},"images":{}}
+        try:
+            loaded=json.loads(THEME_FILE.read_text(encoding="utf-8"))
+            if isinstance(loaded,dict):
+                for key in defaults:
+                    if isinstance(loaded.get(key),dict): defaults[key].update(loaded[key])
+        except (OSError,ValueError,TypeError): pass
+        return defaults
+
     def _styles(self):
         s=ttk.Style(self)
         try:s.theme_use("clam")
         except tk.TclError:pass
-        scale=float(getattr(self,"settings",{}).get("font_scale",1.0)); s.configure(".",font=("Arial",max(9,int(11*scale))))
-        s.configure("Background.TFrame",background="#18212a")
-        s.configure("TFrame",background="#202d38")
-        s.configure("TLabel",background="#202d38",foreground="#f2eadf")
-        s.configure("Title.TLabel",font=("Times New Roman",max(18,int(22*scale)),"bold"),background="#18212a",foreground="#e8c99a")
-        s.configure("Hero.TLabel",font=("Times New Roman",max(22,int(30*scale)),"bold"),background="#18212a",foreground="#f2eadf")
-        s.configure("Eyebrow.TLabel",font=("Courier New",13,"bold"),background="#18212a",foreground="#c99b68")
-        s.configure("Subtitle.TLabel",font=("Georgia",12),background="#18212a",foreground="#c7c0b6")
-        s.configure("Footer.TLabel",background="#18212a",foreground="#a9a39a")
-        s.configure("Task.TLabel",font=("Georgia",17),background="#202d38",foreground="#fff7e8")
-        s.configure("Story.TLabel",font=("Georgia",12),background="#202d38",foreground="#c9c1b6")
-        s.configure("Hint.TLabel",background="#202d38",foreground="#e8c99a")
-        s.configure("TButton",padding=9,background="#8b6545",foreground="#fff7e8")
-        s.map("TButton",background=[("active","#a77c55")])
+        scale=float(getattr(self,"settings",{}).get("font_scale",1.0)); colors=self.theme.get("colors",{}); fonts=self.theme.get("fonts",{})
+        window=colors.get("window","#18212a"); panel=colors.get("panel","#202d38"); paper=colors.get("paper","#f2eadf")
+        accent=colors.get("accent","#e8c99a"); muted=colors.get("muted","#c7c0b6")
+        body=fonts.get("body","Arial"); display=fonts.get("display","Times New Roman"); typewriter=fonts.get("typewriter","Courier New"); story=fonts.get("story","Georgia")
+        s.configure(".",font=(body,max(9,int(11*scale))))
+        s.configure("Background.TFrame",background=window)
+        s.configure("TFrame",background=panel)
+        s.configure("TLabel",background=panel,foreground=paper)
+        s.configure("Title.TLabel",font=(display,max(18,int(22*scale)),"bold"),background=window,foreground=accent)
+        s.configure("Hero.TLabel",font=(display,max(22,int(30*scale)),"bold"),background=window,foreground=paper)
+        s.configure("Eyebrow.TLabel",font=(typewriter,13,"bold"),background=window,foreground=colors.get("accent_detail","#c99b68"))
+        s.configure("Subtitle.TLabel",font=(story,12),background=window,foreground=muted)
+        s.configure("Footer.TLabel",background=window,foreground=colors.get("footer","#a9a39a"))
+        s.configure("Task.TLabel",font=(story,17),background=panel,foreground=colors.get("task","#fff7e8"))
+        s.configure("Story.TLabel",font=(story,12),background=panel,foreground=colors.get("story","#c9c1b6"))
+        s.configure("Hint.TLabel",background=panel,foreground=accent)
+        s.configure("TButton",padding=9,background=colors.get("button","#8b6545"),foreground=paper)
+        s.map("TButton",background=[("active",colors.get("button_active","#a77c55"))])
 
     def _build_menu(self):
-        ttk.Label(self.menu,text="ANASTASIA DAYS",style="Eyebrow.TLabel").pack(pady=(55,8))
+        bg=self.image_assets.load(self.theme.get("images",{}).get("menu_background"),(1500,1000))
+        if bg:
+            self.menu_background=tk.Label(self.menu,image=bg,borderwidth=0); self.menu_background.image=bg
+            self.menu_background.place(relx=0,rely=0,relwidth=1,relheight=1); self.menu_background.lower()
+        ttk.Label(self.menu,text="ANASTASIA DAYS",style="Eyebrow.TLabel").pack(pady=(35,8))
+        logo=self.image_assets.load(self.theme.get("images",{}).get("logo"),(440,150))
+        if logo:
+            self.menu_logo=ttk.Label(self.menu,image=logo,style="Background.TFrame"); self.menu_logo.image=logo; self.menu_logo.pack(pady=(0,8))
         ttk.Label(self.menu,text="MYSTERY FILES",style="Hero.TLabel").pack(pady=(0,12))
         ttk.Label(self.menu,text="Каждая улика приближает к разгадке.",style="Subtitle.TLabel").pack(pady=(0,40))
         box=ttk.Frame(self.menu,style="Background.TFrame"); box.pack()
@@ -131,7 +160,11 @@ class MysteryGameApp(tk.Tk):
         self.case_title=ttk.Label(head,text="",style="Eyebrow.TLabel"); self.case_title.pack(side="left")
         ttk.Button(head,text="В меню",command=self.back_to_menu).pack(side="right")
         ttk.Label(self.game,text="ДОСЬЕ РАССЛЕДОВАНИЯ",style="Hero.TLabel").pack(pady=(18,4))
-        self.progress=ttk.Label(self.game,text="",style="Subtitle.TLabel"); self.progress.pack(pady=(0,18))
+        self.progress=ttk.Label(self.game,text="",style="Subtitle.TLabel"); self.progress.pack(pady=(0,10))
+        self.case_art=ttk.Label(self.game,style="Background.TFrame"); self.case_art.pack(pady=(0,8))
+        media=ttk.Frame(self.game,style="Background.TFrame"); media.pack(fill="x",padx=24,pady=(0,8))
+        self.clue_art=ttk.Label(media,style="Background.TFrame"); self.clue_art.pack(side="left",expand=True,padx=5)
+        self.document_art=ttk.Label(media,style="Background.TFrame"); self.document_art.pack(side="left",expand=True,padx=5)
         panel=ttk.LabelFrame(self.game,text="Текущая улика",padding=22); panel.pack(fill="both",expand=True,padx=24)
         self.task=ttk.Label(panel,text="",style="Task.TLabel",wraplength=760,justify="left"); self.task.pack(anchor="w",pady=(4,16))
         self.story=ttk.Label(panel,text="",style="Story.TLabel",wraplength=760,justify="left"); self.story.pack(anchor="w",pady=(0,18))
@@ -225,11 +258,19 @@ class MysteryGameApp(tk.Tk):
         case=self.get_case(); i=self.active_save["current_clue"]
         if i>=len(case["clues"]): self.finish_case(); return
         clue=case["clues"][i]; self.case_title.configure(text=case["title"])
+        self._display_image(self.case_art,case.get("cover_image") or case.get("background_image"),(720,150),"case_art")
+        self._display_image(self.clue_art,clue.get("illustration_image"),(320,190),"clue_art")
+        self._display_image(self.document_art,clue.get("document_image") or case.get("document_image"),(320,190),"document_art")
         self.progress.configure(text=f"УЛИКА {i+1} ИЗ {len(case['clues'])}")
         self.task.configure(text=clue["task"]); self.story.configure(text=clue.get("story",""))
         self.answer.set(""); self.hint_label.configure(text="")
         self.inventory_summary.configure(text=f"Найдено предметов: {len(self.active_save.get('inventory',[]))}")
         self.entry.focus_set()
+
+    def _display_image(self, widget, relative_path, size, ref_name):
+        photo=self.image_assets.load(relative_path,size) if relative_path else None
+        setattr(self,ref_name+"_photo",photo)
+        widget.configure(image=photo if photo else "",text="" if photo else "")
 
     def submit_answer(self,raw):
         case=self.get_case(); i=self.active_save["current_clue"]; clue=case["clues"][i]
@@ -238,7 +279,7 @@ class MysteryGameApp(tk.Tk):
         if not normalized or normalized not in valid:return False
         self.active_save.setdefault("inventory",[]).append({"name":clue.get("item_name",f"Улика №{i+1}"),
           "icon":clue.get("icon","🔎"),"description":clue.get("item_description",clue.get("story","")),
-          "story":clue.get("story",""),"clue_number":i+1})
+          "story":clue.get("story",""),"item_image":clue.get("item_image"),"clue_number":i+1})
         self.active_save["current_clue"]+=1; self.active_save["hints_used"]=0
         if self.active_save["current_clue"]>=len(case["clues"]):self.finish_case()
         else:self.persist()
@@ -276,7 +317,7 @@ class MysteryGameApp(tk.Tk):
         self.hint_label.configure(text=f"Подсказка {used+1}: {hints[min(used,len(hints)-1)]}")
         self.active_save["hints_used"]=used+1;self.persist()
 
-    def show_inventory(self):InventoryWindow(self,self.active_save.get("inventory",[]))
+    def show_inventory(self):InventoryWindow(self,self.active_save.get("inventory",[]),self.image_assets)
 
     def finish_case(self):
         case=self.get_case();self.active_save["completed"]=True
