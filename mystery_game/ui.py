@@ -60,7 +60,7 @@ class EditorWindow(tk.Toplevel):
         super().__init__(parent); self.title("Редактор расследований"); self.geometry("900x680")
         self.manager=manager; self.on_saved=on_saved
         ttk.Label(self,text="РЕДАКТОР РАССЛЕДОВАНИЙ",style="Title.TLabel").pack(pady=12)
-        ttk.Label(self,text="Редактируй JSON: дела, улики, варианты ответов, описания и подсказки.").pack(pady=5)
+        ttk.Label(self,text="Редактируй JSON: тексты, подсказки и пути к изображениям (cover_image, background_image, document_image, illustration_image, item_image). Пути задаются от assets/images/.").pack(pady=5)
         self.text=tk.Text(self,wrap="none",font=("Consolas",10),bg="#101820",fg="#f2eadf",insertbackground="white",undo=True)
         self.text.pack(fill="both",expand=True,padx=16,pady=12)
         try:
