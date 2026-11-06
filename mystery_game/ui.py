@@ -92,6 +92,7 @@ class MysteryGameApp(tk.Tk):
             messagebox.showerror("Ошибка данных",str(exc)); self.destroy(); raise
         self.save_manager=SaveManager(SAVES_DIR); self.settings=self.save_manager.load_settings()
         self.theme=self._load_theme(); self.image_assets=ImageAssets(ASSETS_DIR)
+        self.configure(bg=self.theme.get("colors",{}).get("window","#18212a"))
         self.audio=AudioManager(SOUNDS_DIR,self.settings); self.active_save=None
         self._styles()
         root=ttk.Frame(self,style="Background.TFrame"); root.pack(fill="both",expand=True)
@@ -156,6 +157,8 @@ class MysteryGameApp(tk.Tk):
         self.menu_status=ttk.Label(self.menu,text="CASE FILE  •  PRIVATE INVESTIGATION",style="Footer.TLabel"); self.menu_status.pack(side="bottom",pady=8)
 
     def _build_game(self):
+        self.case_background=tk.Label(self.game,borderwidth=0,bg=self.theme.get("colors",{}).get("window","#18212a"))
+        self.case_background.place(relx=0,rely=0,relwidth=1,relheight=1); self.case_background.lower()
         head=ttk.Frame(self.game,style="Background.TFrame"); head.pack(fill="x")
         self.case_title=ttk.Label(head,text="",style="Eyebrow.TLabel"); self.case_title.pack(side="left")
         ttk.Button(head,text="В меню",command=self.back_to_menu).pack(side="right")
@@ -258,7 +261,8 @@ class MysteryGameApp(tk.Tk):
         case=self.get_case(); i=self.active_save["current_clue"]
         if i>=len(case["clues"]): self.finish_case(); return
         clue=case["clues"][i]; self.case_title.configure(text=case["title"])
-        self._display_image(self.case_art,case.get("cover_image") or case.get("background_image"),(720,150),"case_art")
+        self._display_image(self.case_background,case.get("background_image"),(1000,700),"case_background")
+        self._display_image(self.case_art,case.get("cover_image"),(720,150),"case_art")
         self._display_image(self.clue_art,clue.get("illustration_image"),(320,190),"clue_art")
         self._display_image(self.document_art,clue.get("document_image") or case.get("document_image"),(320,190),"document_art")
         self.progress.configure(text=f"УЛИКА {i+1} ИЗ {len(case['clues'])}")
