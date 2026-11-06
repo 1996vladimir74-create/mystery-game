@@ -12,15 +12,18 @@ if IS_FROZEN:
     DATA_DIR = RESOURCE_DIR / "data"
     SAVES_DIR = USER_DATA_DIR / "saves"
     INVESTIGATIONS_FILE = USER_DATA_DIR / "investigations.json"
+    DLCS_FILE = USER_DATA_DIR / "dlcs.json"
 else:
     USER_DATA_DIR = ROOT_DIR
     DATA_DIR = ROOT_DIR / "data"
     SAVES_DIR = ROOT_DIR / "saves"
     INVESTIGATIONS_FILE = DATA_DIR / "investigations.json"
+    DLCS_FILE = DATA_DIR / "dlcs.json"
 
 ASSETS_DIR = RESOURCE_DIR / "assets"
 THEME_FILE = ASSETS_DIR / "theme.json"
 SOUNDS_DIR = ASSETS_DIR / "sounds"
 BUNDLED_INVESTIGATIONS_FILE = DATA_DIR / "investigations.json"
+BUNDLED_DLCS_FILE = DATA_DIR / "dlcs.json"
 WINDOW_SIZE = "1000x700"
 APP_TITLE = "ANASTASIA DAYS — MYSTERY GAME"
