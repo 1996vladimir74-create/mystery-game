@@ -29,3 +29,53 @@ def ensure_default(path, bundled_path=None):
         shutil.copy2(bundled_path, path)
         return
     path.write_text(json.dumps(DEFAULT_CASE, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+class DLCManager:
+    """Loads and validates DLC packs, each containing an ordered quest chain."""
+
+    def __init__(self, path, cases_provider):
+        from pathlib import Path
+        self.path = Path(path)
+        self.cases_provider = cases_provider
+
+    def load_dlcs(self):
+        import json
+        from .core import DataError
+        try:
+            dlcs = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise DataError(f"Не удалось прочитать список DLC: {exc}") from exc
+        if not isinstance(dlcs, list):
+            raise DataError("Файл DLC должен содержать JSON-список.")
+        case_ids = {case["id"] for case in self.cases_provider()}
+        seen = set()
+        for dlc in dlcs:
+            if not isinstance(dlc, dict) or not isinstance(dlc.get("id"), str) or not dlc["id"].strip():
+                raise DataError("У каждого DLC должен быть непустой id.")
+            if dlc["id"] in seen:
+                raise DataError("ID DLC должны быть уникальными.")
+            seen.add(dlc["id"])
+            if not isinstance(dlc.get("title"), str) or not dlc["title"].strip():
+                raise DataError(f"У DLC «{dlc['id']}» должно быть название.")
+            quests = dlc.get("quests")
+            if not isinstance(quests, list) or not quests or any(q not in case_ids for q in quests):
+                raise DataError(f"У DLC «{dlc['title']}» должен быть непустой список существующих ID расследований.")
+            if len(quests) != len(set(quests)):
+                raise DataError(f"В DLC «{dlc['title']}» один квест указан несколько раз.")
+        return sorted(dlcs, key=lambda item: item.get("added_at", ""), reverse=True)
+
+    def save_dlcs(self, dlcs):
+        import json
+        from .core import DataError
+        if not isinstance(dlcs, list):
+            raise DataError("Ожидается список DLC.")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        try:
+            tmp.write_text(json.dumps(dlcs, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(self.path)
+        except OSError as exc:
+            tmp.unlink(missing_ok=True)
+            raise DataError(f"Не удалось сохранить список DLC: {exc}") from exc
+        self.load_dlcs()
