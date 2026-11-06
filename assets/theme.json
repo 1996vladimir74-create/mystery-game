@@ -1,0 +1,21 @@
+{
+  "colors": {
+    "window": "#18212a",
+    "panel": "#202d38",
+    "paper": "#f2eadf",
+    "accent": "#e8c99a",
+    "muted": "#c7c0b6",
+    "button": "#8b6545",
+    "button_active": "#a77c55"
+  },
+  "fonts": {
+    "body": "Arial",
+    "display": "Times New Roman",
+    "typewriter": "Courier New",
+    "story": "Georgia"
+  },
+  "images": {
+    "menu_background": "branding/menu-background.jpg",
+    "logo": "branding/logo.png"
+  }
+}
