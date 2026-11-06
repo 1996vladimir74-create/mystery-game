@@ -3,7 +3,7 @@ from tkinter import ttk, simpledialog, messagebox
 from datetime import datetime
 from .config import *
 from .core import DataManager, DataError, SaveManager, SaveError, AudioManager, normalize_answer
-from .data import ensure_default
+from .data import ensure_default, DLCManager
 from .images import ImageAssets
 import json
 
@@ -49,7 +49,9 @@ class SettingsWindow(tk.Toplevel):
         ttk.Scale(form,from_=.8,to=1.4,variable=self.font_scale).pack(fill="x")
         ttk.Label(form,text="Сложность подсказок").pack(anchor="w",pady=(14,2))
         ttk.Combobox(form,textvariable=self.diff,values=("easy","normal","hard"),state="readonly").pack(fill="x")
-        ttk.Button(self,text="Сохранить настройки",command=self.save).pack(pady=16)
+        ttk.Button(self,text="Сохранить настройки",command=self.save).pack(pady=12)
+        ttk.Button(self,text="Редактор расследований",command=parent.open_editor).pack(fill="x",padx=24,pady=4)
+        ttk.Button(self,text="Редактор DLC",command=parent.open_dlc_editor).pack(fill="x",padx=24,pady=4)
     def save(self):
         self.settings.update(sound_enabled=self.sound.get(),music_enabled=self.music.get(),
           animations=self.anim.get(),music_volume=self.volume.get(),font_scale=self.font_scale.get(),difficulty=self.diff.get())
@@ -80,16 +82,61 @@ class EditorWindow(tk.Toplevel):
         except (json.JSONDecodeError,DataError,AttributeError,TypeError) as exc:
             messagebox.showerror("Не удалось сохранить",str(exc),parent=self)
 
+class DLCEditorWindow(tk.Toplevel):
+    def __init__(self,parent,manager,on_saved):
+        super().__init__(parent); self.title("Редактор DLC"); self.geometry("760x560")
+        self.manager=manager; self.on_saved=on_saved
+        ttk.Label(self,text="РЕДАКТОР ИСТОРИЙ / DLC",style="Title.TLabel").pack(pady=12)
+        ttk.Label(self,text="Каждый DLC содержит последовательный список ID расследований из редактора расследований.").pack(pady=4)
+        self.text=tk.Text(self,wrap="none",font=("Consolas",10),bg="#101820",fg="#f2eadf",insertbackground="white",undo=True)
+        self.text.pack(fill="both",expand=True,padx=14,pady=10)
+        self.text.insert("1.0",json.dumps(manager.load_dlcs(),ensure_ascii=False,indent=2))
+        buttons=ttk.Frame(self); buttons.pack(fill="x",padx=14,pady=10)
+        ttk.Button(buttons,text="＋ Добавить DLC в начало списка",command=self.add_dlc).pack(side="left")
+        ttk.Button(buttons,text="Проверить и сохранить",command=self.save).pack(side="right")
+
+    def add_dlc(self):
+        title=simpledialog.askstring("Новое DLC","Название истории:",parent=self)
+        if not title or not title.strip():return
+        description=simpledialog.askstring("Описание","Краткое описание истории:",parent=self) or ""
+        quest_text=simpledialog.askstring(
+            "Цепочка квестов","Введи ID расследований через запятую, в нужном порядке:",parent=self
+        )
+        if not quest_text:return
+        quests=[value.strip() for value in quest_text.split(",") if value.strip()]
+        dlcs=json.loads(self.text.get("1.0","end-1c"))
+        dlcs.insert(0,{
+            "id":"dlc-"+datetime.now().strftime("%Y%m%d%H%M%S"),
+            "title":title.strip(),"description":description.strip(),
+            "added_at":datetime.now().isoformat(timespec="seconds"),"quests":quests
+        })
+        self.text.delete("1.0","end")
+        self.text.insert("1.0",json.dumps(dlcs,ensure_ascii=False,indent=2))
+
+    def save(self):
+        try:
+            dlcs=json.loads(self.text.get("1.0","end-1c"))
+            self.manager.save_dlcs(dlcs); self.on_saved()
+            messagebox.showinfo("Готово","Список DLC сохранён. Новые истории отображаются первыми.",parent=self)
+        except (json.JSONDecodeError,DataError,TypeError) as exc:
+            messagebox.showerror("Ошибка DLC",str(exc),parent=self)
+
+
 class MysteryGameApp(tk.Tk):
     def __init__(self):
         super().__init__(); self.title(APP_TITLE); self.geometry(WINDOW_SIZE); self.minsize(820,600)
         self.configure(bg="#18212a")
         for folder in (DATA_DIR,ASSETS_DIR,SOUNDS_DIR,SAVES_DIR): folder.mkdir(parents=True,exist_ok=True)
         ensure_default(INVESTIGATIONS_FILE, BUNDLED_INVESTIGATIONS_FILE)
+        ensure_default(DLCS_FILE, BUNDLED_DLCS_FILE)
         self.data_manager=DataManager(INVESTIGATIONS_FILE)
         try: self.cases=self.data_manager.load_cases()
         except DataError as exc:
             messagebox.showerror("Ошибка данных",str(exc)); self.destroy(); raise
+        self.dlc_manager=DLCManager(DLCS_FILE, self.data_manager.load_cases)
+        try: self.dlcs=self.dlc_manager.load_dlcs()
+        except DataError as exc:
+            messagebox.showerror("Ошибка DLC",str(exc)); self.destroy(); raise
         self.save_manager=SaveManager(SAVES_DIR); self.settings=self.save_manager.load_settings()
         self.theme=self._load_theme(); self.image_assets=ImageAssets(ASSETS_DIR)
         self.configure(bg=self.theme.get("colors",{}).get("window","#18212a"))
@@ -138,23 +185,79 @@ class MysteryGameApp(tk.Tk):
         s.map("TButton",background=[("active",colors.get("button_active","#a77c55"))])
 
     def _build_menu(self):
-        bg=self.image_assets.load(self.theme.get("images",{}).get("menu_background"),(1500,1000))
+        # The portrait artwork occupies the left side; the DLC launcher is a separate right panel.
+        bg=self.image_assets.load(self.theme.get("images",{}).get("menu_background"),(530,700))
+        self.menu_art=tk.Label(self.menu,bg="#17231f",borderwidth=0)
         if bg:
-            self.menu_background=tk.Label(self.menu,image=bg,borderwidth=0); self.menu_background.image=bg
-            self.menu_background.place(relx=0,rely=0,relwidth=1,relheight=1); self.menu_background.lower()
-        ttk.Label(self.menu,text="ANASTASIA DAYS",style="Eyebrow.TLabel").pack(pady=(35,8))
-        logo=self.image_assets.load(self.theme.get("images",{}).get("logo"),(440,150))
-        if logo:
-            self.menu_logo=ttk.Label(self.menu,image=logo,style="Background.TFrame"); self.menu_logo.image=logo; self.menu_logo.pack(pady=(0,8))
-        ttk.Label(self.menu,text="MYSTERY FILES",style="Hero.TLabel").pack(pady=(0,12))
-        ttk.Label(self.menu,text="Каждая улика приближает к разгадке.",style="Subtitle.TLabel").pack(pady=(0,40))
-        box=ttk.Frame(self.menu,style="Background.TFrame"); box.pack()
-        self.continue_btn=ttk.Button(box,text="Продолжить расследование",command=self.continue_game)
-        self.continue_btn.pack(fill="x",pady=7,ipady=7)
-        for label,cmd in (("Новое расследование",self.new_game),("Доска закрытых дел",self.show_board),
-                          ("Редактор расследований",self.open_editor),("Настройки",self.open_settings),("Выход",self.on_close)):
-            ttk.Button(box,text=label,command=cmd).pack(fill="x",pady=7,ipady=7)
-        self.menu_status=ttk.Label(self.menu,text="CASE FILE  •  PRIVATE INVESTIGATION",style="Footer.TLabel"); self.menu_status.pack(side="bottom",pady=8)
+            self.menu_art.configure(image=bg); self.menu_art.image=bg
+        self.menu_art.place(x=0,y=0,width=530,height=700)
+        self.active_dlc_title=tk.Label(
+            self.menu,text="Выбери историю справа",bg="#17231f",fg="#f0d5a7",
+            font=("Georgia",15,"bold"),wraplength=450,justify="left"
+        )
+        self.active_dlc_title.place(x=24,y=205,width=470)
+        self.menu_panel=tk.Frame(self.menu,bg="#172b28",highlightthickness=1,highlightbackground="#9b7951")
+        self.menu_panel.place(relx=0.53,rely=0,relwidth=0.47,relheight=1)
+        tk.Label(self.menu_panel,text="ИСТОРИИ  /  DLC",bg="#172b28",fg="#e8c99a",
+                 font=("Courier New",15,"bold")).pack(anchor="w",padx=24,pady=(38,12))
+        self.dlc_list=tk.Listbox(
+            self.menu_panel,bg="#20332f",fg="#f2eadf",selectbackground="#8b6545",
+            selectforeground="#fff7e8",font=("Georgia",12),relief="flat",
+            highlightthickness=1,highlightbackground="#8b765c",activestyle="none",
+            exportselection=False
+        )
+        self.dlc_list.pack(fill="x",padx=24,ipady=8)
+        self.dlc_list.bind("<<ListboxSelect>>",self._on_dlc_selected)
+        self._populate_dlc_list()
+        ttk.Separator(self.menu_panel).pack(fill="x",padx=24,pady=(24,14))
+        actions=tk.Frame(self.menu_panel,bg="#172b28")
+        actions.pack(fill="x",padx=24)
+        for label,cmd in (
+            ("Загрузка",self.continue_game),
+            ("Опции",self.open_settings),
+            ("Доска раскрытых дел",self.show_board),
+            ("Выход",self.on_close)
+        ):
+            button=tk.Button(
+                actions,text=label,command=cmd,anchor="w",relief="flat",
+                bg="#263c36",fg="#f2eadf",activebackground="#8b6545",
+                activeforeground="#fff7e8",font=("Georgia",12),padx=14,pady=11,
+                cursor="hand2"
+            )
+            button.pack(fill="x",pady=5)
+        tk.Label(self.menu_panel,text="ANASTASIA DAYS  •  PRIVATE STORIES",
+                 bg="#172b28",fg="#b9a78d",font=("Courier New",8)).pack(side="bottom",pady=18)
+
+    def _populate_dlc_list(self):
+        self.dlc_list.delete(0,"end")
+        for dlc in self.dlcs:
+            self.dlc_list.insert("end",dlc["title"])
+        if self.dlcs:
+            self.dlc_list.selection_clear(0,"end")
+
+    def _on_dlc_selected(self,_event=None):
+        selection=self.dlc_list.curselection()
+        if not selection:return
+        dlc=self.dlcs[selection[0]]
+        self.active_dlc_title.configure(text=dlc["title"])
+        if messagebox.askyesno("Начать DLC",f"Начать историю «{dlc['title']}»?\n\nКвесты будут проходиться последовательно.",parent=self):
+            self.start_dlc(dlc)
+
+    def start_dlc(self,dlc):
+        cases={case["id"]:case for case in self.cases}
+        quest_ids=list(dlc["quests"])
+        first=cases[quest_ids[0]]
+        name=simpledialog.askstring("Новая история","Название сохранения:",initialvalue=dlc["title"],parent=self)
+        if not name or not name.strip():
+            self.dlc_list.selection_clear(0,"end")
+            return
+        self.active_save=self.save_manager.create(name.strip(),first["id"])
+        self.active_save.update(
+            dlc_id=dlc["id"],dlc_title=dlc["title"],quest_ids=quest_ids,
+            completed_case_ids=[],completed_case_titles={},case_title=first["title"]
+        )
+        self.persist()
+        self.show("game")
 
     def _build_game(self):
         self.case_background=tk.Label(self.game,borderwidth=0,bg=self.theme.get("colors",{}).get("window","#18212a"))
@@ -185,7 +288,7 @@ class MysteryGameApp(tk.Tk):
     def _build_board(self):
         top=ttk.Frame(self.board,style="Background.TFrame"); top.pack(fill="x")
         ttk.Button(top,text="← В меню",command=self.back_to_menu).pack(side="left")
-        ttk.Label(self.board,text="ДОСКА ЗАКРЫТЫХ ДЕЛ",style="Hero.TLabel").pack(pady=24)
+        ttk.Label(self.board,text="ДОСКА РАСКРЫТЫХ ДЕЛ",style="Hero.TLabel").pack(pady=24)
         self.board_canvas=tk.Canvas(self.board,bg="#9a7048",highlightthickness=0)
         self.board_canvas.pack(fill="both",expand=True,padx=10,pady=10)
         self.board_inner=ttk.Frame(self.board_canvas)
@@ -325,10 +428,36 @@ class MysteryGameApp(tk.Tk):
     def show_inventory(self):InventoryWindow(self,self.active_save.get("inventory",[]),self.image_assets)
 
     def finish_case(self):
-        case=self.get_case();self.active_save["completed"]=True
-        self.active_save["case_title"]=case["title"];self.active_save["completed_at"]=datetime.now().isoformat(timespec="seconds")
-        self.persist();self.audio.effect("success.wav")
-        messagebox.showinfo("Дело раскрыто",case.get("final_letter","Дело раскрыто!"),parent=self)
+        case=self.get_case()
+        completed_ids=self.active_save.setdefault("completed_case_ids",[])
+        completed_titles=self.active_save.setdefault("completed_case_titles",{})
+        if case["id"] not in completed_ids:
+            completed_ids.append(case["id"])
+        completed_titles[case["id"]]=case["title"]
+        quest_ids=self.active_save.get("quest_ids",[case["id"]])
+        try: current_index=quest_ids.index(case["id"])
+        except ValueError: current_index=len(quest_ids)-1
+        self.audio.effect("success.wav")
+        if current_index+1 < len(quest_ids):
+            next_id=quest_ids[current_index+1]
+            next_case=next((item for item in self.cases if item["id"]==next_id),None)
+            if next_case is None:
+                messagebox.showerror("Ошибка DLC",f"Следующий квест «{next_id}» отсутствует.",parent=self)
+                return
+            self.active_save.update(case_id=next_id,case_title=next_case["title"],current_clue=0,hints_used=0)
+            self.persist()
+            messagebox.showinfo(
+                "Этап раскрыт",
+                f"«{case['title']}» завершено.\n\nСледующий квест: «{next_case['title']}».\n\n{case.get('final_letter','')}",
+                parent=self
+            )
+            self.show("game")
+            return
+        self.active_save["completed"]=True
+        self.active_save["case_title"]=self.active_save.get("dlc_title",case["title"])
+        self.active_save["completed_at"]=datetime.now().isoformat(timespec="seconds")
+        self.persist()
+        messagebox.showinfo("История раскрыта",case.get("final_letter","История раскрыта!"),parent=self)
         self.show("board")
 
     def persist(self):
@@ -354,8 +483,16 @@ class MysteryGameApp(tk.Tk):
         if settings.get("music_enabled"):self.audio.music()
         else:self.audio.stop()
     def open_editor(self):EditorWindow(self,self.data_manager,self.reload_cases)
+    def open_dlc_editor(self):DLCEditorWindow(self,self.dlc_manager,self.reload_dlcs)
     def reload_cases(self):
-        try:self.cases=self.data_manager.load_cases()
+        try:
+            self.cases=self.data_manager.load_cases()
+            self.reload_dlcs()
         except DataError as exc:messagebox.showerror("Ошибка",str(exc),parent=self)
+    def reload_dlcs(self):
+        try:
+            self.dlcs=self.dlc_manager.load_dlcs()
+            self._populate_dlc_list()
+        except DataError as exc:messagebox.showerror("Ошибка DLC",str(exc),parent=self)
     def on_close(self):
         self.persist();self._stop_menu_animation();self.audio.close();self.destroy()
