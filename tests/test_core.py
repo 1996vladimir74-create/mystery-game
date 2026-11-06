@@ -158,3 +158,26 @@ class DLCManagerTests(unittest.TestCase):
             with self.assertRaises(DataError):
                 manager.save_dlcs([{"id": "bad", "title": "Bad", "quests": ["missing"]}])
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), valid)
+
+
+class CompletedDLCBoardTests(unittest.TestCase):
+    def test_board_lists_each_completed_quest_from_a_finished_dlc(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = SaveManager(Path(tmp))
+            save = manager.create("Autumn story", "final-case")
+            save.update(
+                completed=True,
+                case_title="Autumn story",
+                completed_at="2026-11-06T12:00:00",
+                completed_case_ids=["letter-case", "old-house", "final-case"],
+                completed_case_titles={
+                    "letter-case": "The letter",
+                    "old-house": "The old house",
+                    "final-case": "The final secret"
+                }
+            )
+            manager.save(save)
+            self.assertEqual(
+                [item["name"] for item in manager.completed_cases()],
+                ["The letter", "The old house", "The final secret"]
+            )
