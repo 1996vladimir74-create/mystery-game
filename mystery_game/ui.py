@@ -186,7 +186,7 @@ class MysteryGameApp(tk.Tk):
 
     def _build_menu(self):
         # The portrait artwork occupies the left side; the DLC launcher is a separate right panel.
-        bg=self.image_assets.load(self.theme.get("images",{}).get("menu_background"),(530,700))
+        bg=self.image_assets.load_fit(self.theme.get("images",{}).get("menu_background"),(530,700),centering=(0.5,0.22))
         self.menu_art=tk.Label(self.menu,bg="#17231f",borderwidth=0)
         if bg:
             self.menu_art.configure(image=bg); self.menu_art.image=bg
