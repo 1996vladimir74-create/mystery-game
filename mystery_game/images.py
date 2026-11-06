@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PIL import Image, ImageTk
+from PIL import Image, ImageOps, ImageTk
 
 
 class ImageAssets:
@@ -24,6 +24,22 @@ class ImageAssets:
         except ValueError:
             return None
         return resolved if resolved.is_file() else None
+
+    def load_fit(self, relative_path, size, centering=(0.5, 0.28)):
+        path = self.resolve(relative_path)
+        if path is None:
+            return None
+        key = (str(path), tuple(size), "fit", tuple(centering))
+        if key in self._cache:
+            return self._cache[key]
+        try:
+            with Image.open(path) as source:
+                image = ImageOps.fit(source.convert("RGBA"), size, method=Image.Resampling.LANCZOS, centering=centering)
+                photo = ImageTk.PhotoImage(image)
+            self._cache[key] = photo
+            return photo
+        except (OSError, ValueError):
+            return None
 
     def load(self, relative_path, size=None):
         path = self.resolve(relative_path)
