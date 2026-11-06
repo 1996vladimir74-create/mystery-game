@@ -19,6 +19,7 @@ else:
     INVESTIGATIONS_FILE = DATA_DIR / "investigations.json"
 
 ASSETS_DIR = RESOURCE_DIR / "assets"
+THEME_FILE = ASSETS_DIR / "theme.json"
 SOUNDS_DIR = ASSETS_DIR / "sounds"
 BUNDLED_INVESTIGATIONS_FILE = DATA_DIR / "investigations.json"
 WINDOW_SIZE = "1000x700"
