@@ -5,6 +5,7 @@ from pathlib import Path
 
 from mystery_game.core import DataError, DataManager, SaveError, SaveManager, normalize_answer
 from mystery_game.images import ImageAssets
+from mystery_game.data import DLCManager
 
 VALID_CASE = {
     "id": "case-one", "title": "Тестовое дело",
@@ -125,3 +126,35 @@ class ImageAssetPathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             assets = ImageAssets(Path(tmp) / "assets")
             self.assertIsNone(assets.resolve("items/camera.svg"))
+
+
+class DLCManagerTests(unittest.TestCase):
+    def test_newest_dlc_is_sorted_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dlcs.json"
+            path.write_text(json.dumps([
+                {"id": "old", "title": "Old", "added_at": "2026-01-01", "quests": ["case-one"]},
+                {"id": "new", "title": "New", "added_at": "2026-11-01", "quests": ["case-one"]}
+            ]), encoding="utf-8")
+            manager = DLCManager(path, lambda: [VALID_CASE])
+            self.assertEqual([x["id"] for x in manager.load_dlcs()], ["new", "old"])
+
+    def test_rejects_unknown_quest_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dlcs.json"
+            path.write_text(json.dumps([
+                {"id": "bad", "title": "Bad", "added_at": "2026-11-01", "quests": ["missing"]}
+            ]), encoding="utf-8")
+            manager = DLCManager(path, lambda: [VALID_CASE])
+            with self.assertRaises(DataError):
+                manager.load_dlcs()
+
+    def test_save_invalid_dlc_does_not_overwrite_previous_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "dlcs.json"
+            valid = [{"id": "ok", "title": "OK", "added_at": "2026-11-01", "quests": ["case-one"]}]
+            path.write_text(json.dumps(valid), encoding="utf-8")
+            manager = DLCManager(path, lambda: [VALID_CASE])
+            with self.assertRaises(DataError):
+                manager.save_dlcs([{"id": "bad", "title": "Bad", "quests": ["missing"]}])
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), valid)
