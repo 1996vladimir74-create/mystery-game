@@ -274,7 +274,8 @@ class MysteryGameApp(tk.Tk):
     def _display_image(self, widget, relative_path, size, ref_name):
         photo=self.image_assets.load(relative_path,size) if relative_path else None
         setattr(self,ref_name+"_photo",photo)
-        widget.configure(image=photo if photo else "",text="" if photo else "")
+        placeholders={"case_art":"ОБЛОЖКА ДЕЛА — добавь cover_image","clue_art":"ИЛЛЮСТРАЦИЯ УЛИКИ — добавь illustration_image","document_art":"ФОТО / ДОКУМЕНТ — добавь document_image"}
+        widget.configure(image=photo if photo else "",text="" if photo else placeholders.get(ref_name,""))
 
     def submit_answer(self,raw):
         case=self.get_case(); i=self.active_save["current_clue"]; clue=case["clues"][i]
