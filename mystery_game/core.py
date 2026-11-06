@@ -32,6 +32,9 @@ class DataManager:
             raise DataError("У каждого дела должен быть непустой строковый id.")
         if not isinstance(case.get("title"), str) or not case["title"].strip():
             raise DataError(f"У дела «{case.get('id', '?')}» должно быть название.")
+        for field in ("cover_image", "background_image", "document_image"):
+            if field in case and case[field] is not None and not isinstance(case[field], str):
+                raise DataError(f"Поле {field} должно быть строкой с относительным путём к изображению.")
         clues = case.get("clues")
         if not isinstance(clues, list) or not clues:
             raise DataError(f"В деле «{case['title']}» должен быть непустой список улик.")
@@ -44,6 +47,9 @@ class DataManager:
             if (not isinstance(answers, list) or not answers
                     or any(not isinstance(x, str) or not x.strip() or not normalize_answer(x) for x in answers)):
                 raise DataError(f"Улика №{i}: answers должен быть непустым списком строк.")
+            for field in ("illustration_image", "document_image", "item_image"):
+                if field in clue and clue[field] is not None and not isinstance(clue[field], str):
+                    raise DataError(f"Улика №{i}: поле {field} должно быть строкой с относительным путём к изображению.")
             hints = clue.get("hints", [])
             if not isinstance(hints, list) or any(not isinstance(x, str) for x in hints):
                 raise DataError(f"Улика №{i}: hints должен быть списком строк.")
