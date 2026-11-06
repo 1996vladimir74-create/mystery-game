@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from mystery_game.core import DataError, DataManager, SaveError, SaveManager, normalize_answer
+from mystery_game.images import ImageAssets
 
 VALID_CASE = {
     "id": "case-one", "title": "Тестовое дело",
@@ -101,3 +102,26 @@ class SaveManagerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ImageAssetPathTests(unittest.TestCase):
+    def test_resolves_existing_relative_image(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "assets"
+            image_dir = root / "images" / "items"
+            image_dir.mkdir(parents=True)
+            image_file = image_dir / "camera.png"
+            image_file.write_bytes(b"placeholder")
+            assets = ImageAssets(root)
+            self.assertEqual(assets.resolve("items/camera.png"), image_file.resolve())
+
+    def test_rejects_path_traversal_and_absolute_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            assets = ImageAssets(Path(tmp) / "assets")
+            self.assertIsNone(assets.resolve("../../outside.png"))
+            self.assertIsNone(assets.resolve(str(Path(tmp) / "outside.png")))
+
+    def test_rejects_unsupported_extension(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            assets = ImageAssets(Path(tmp) / "assets")
+            self.assertIsNone(assets.resolve("items/camera.svg"))
