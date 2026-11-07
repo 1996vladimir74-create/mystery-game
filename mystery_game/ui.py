@@ -1,6 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, simpledialog, messagebox
+from tkinter import ttk, simpledialog, messagebox, filedialog
 from datetime import datetime
+from pathlib import Path
+import shutil
 from .config import *
 from .core import DataManager, DataError, SaveManager, SaveError, AudioManager, normalize_answer
 from .data import ensure_default, DLCManager
@@ -58,20 +60,90 @@ class SettingsWindow(tk.Toplevel):
         self.on_save(self.settings); self.destroy()
 
 class EditorWindow(tk.Toplevel):
+    IMAGE_FIELDS = {
+        "Обложка расследования": ("case", "cover_image"),
+        "Фон расследования": ("case", "background_image"),
+        "Документ расследования": ("case", "document_image"),
+        "Фон отдельной улики / этапа": ("clue", "background_image"),
+        "Иллюстрация улики": ("clue", "illustration_image"),
+        "Документ или фото улики": ("clue", "document_image"),
+        "Изображение найденного предмета": ("clue", "item_image"),
+    }
+
     def __init__(self,parent,manager,on_saved):
-        super().__init__(parent); self.title("Редактор расследований"); self.geometry("900x680")
+        super().__init__(parent); self.title("Редактор расследований"); self.geometry("980x760")
         self.manager=manager; self.on_saved=on_saved
-        ttk.Label(self,text="РЕДАКТОР РАССЛЕДОВАНИЙ",style="Title.TLabel").pack(pady=12)
-        ttk.Label(self,text="Редактируй JSON: тексты, подсказки и пути к изображениям (cover_image, background_image, document_image, illustration_image, item_image). Пути задаются от assets/images/.").pack(pady=5)
-        self.text=tk.Text(self,wrap="none",font=("Consolas",10),bg="#101820",fg="#f2eadf",insertbackground="white",undo=True)
-        self.text.pack(fill="both",expand=True,padx=16,pady=12)
+        ttk.Label(self,text="РЕДАКТОР РАССЛЕДОВАНИЙ",style="Title.TLabel").pack(pady=10)
+        ttk.Label(self,text="У каждого расследования и каждой улики могут быть собственные тексты и изображения. "
+                            "Выбери дело, этап и тип изображения, затем добавь файл с компьютера.",
+                  wraplength=900).pack(pady=4)
+        try: cases=manager.load_cases()
+        except DataError as exc:
+            messagebox.showerror("Ошибка данных",str(exc),parent=self); cases=[]
+        toolbar=ttk.LabelFrame(self,text="Добавить изображение",padding=10)
+        toolbar.pack(fill="x",padx=14,pady=8)
+        self.case_var=tk.StringVar(value=cases[0].get("title","") if cases else "")
+        self.case_combo=ttk.Combobox(toolbar,textvariable=self.case_var,
+            values=[case.get("title","") for case in cases],state="readonly",width=28)
+        self.case_combo.grid(row=0,column=0,padx=5,pady=4,sticky="ew")
+        self.clue_var=tk.StringVar(value="Улика №1")
+        self.clue_combo=ttk.Combobox(toolbar,textvariable=self.clue_var,
+            values=[f"Улика №{i+1}" for i in range(len(cases[0].get("clues",[])))] if cases else [],
+            state="readonly",width=14)
+        self.clue_combo.grid(row=0,column=1,padx=5,pady=4)
+        self.slot_var=tk.StringVar(value="Иллюстрация улики")
+        self.slot_combo=ttk.Combobox(toolbar,textvariable=self.slot_var,
+            values=list(self.IMAGE_FIELDS),state="readonly",width=34)
+        self.slot_combo.grid(row=0,column=2,padx=5,pady=4)
+        ttk.Button(toolbar,text="Выбрать файл изображения…",command=self.assign_image).grid(row=0,column=3,padx=6,pady=4)
+        toolbar.columnconfigure(0,weight=1)
+        self.case_combo.bind("<<ComboboxSelected>>",self.update_clue_choices)
+        ttk.Label(self,text="Тексты, ответы, подсказки и дополнительные настройки этапов редактируются в JSON ниже:").pack(anchor="w",padx=16)
+        self.text=tk.Text(self,wrap="none",font=("Consolas",10),bg="#101820",fg="#f2eadf",
+                          insertbackground="white",undo=True)
+        self.text.pack(fill="both",expand=True,padx=16,pady=8)
+        self.text.insert("1.0",json.dumps(cases,ensure_ascii=False,indent=2))
+        ttk.Button(self,text="Проверить и сохранить расследования",command=self.save).pack(pady=12)
+
+    def update_clue_choices(self,_event=None):
         try:
-            import json
-            self.text.insert("1.0",json.dumps(manager.load_cases(),ensure_ascii=False,indent=2))
-        except DataError as exc: messagebox.showerror("Ошибка данных",str(exc),parent=self)
-        ttk.Button(self,text="Проверить и сохранить",command=self.save).pack(pady=12)
+            cases=json.loads(self.text.get("1.0","end-1c"))
+            index=next(i for i,c in enumerate(cases) if c.get("title")==self.case_var.get())
+            clues=cases[index].get("clues",[])
+            self.clue_combo.configure(values=[f"Улика №{i+1}" for i in range(len(clues))])
+            self.clue_var.set("Улика №1" if clues else "")
+        except (ValueError,StopIteration,TypeError,json.JSONDecodeError):
+            self.clue_combo.configure(values=[]); self.clue_var.set("")
+
+    def assign_image(self):
+        source=filedialog.askopenfilename(parent=self,title="Выбери изображение",
+            filetypes=[("Изображения","*.png *.jpg *.jpeg *.webp *.bmp *.gif"),("Все файлы","*.*")])
+        if not source:return
+        try:
+            cases=json.loads(self.text.get("1.0","end-1c"))
+            case_index=next(i for i,c in enumerate(cases) if c.get("title")==self.case_var.get())
+            target,field=self.IMAGE_FIELDS[self.slot_var.get()]
+            if target=="case":
+                destination=cases[case_index]
+            else:
+                clue_index=int(self.clue_var.get().split("№")[-1])-1
+                destination=cases[case_index]["clues"][clue_index]
+            image_dir=ASSETS_DIR/"images"/"custom"
+            image_dir.mkdir(parents=True,exist_ok=True)
+            source_path=Path(source)
+            filename=datetime.now().strftime("%Y%m%d_%H%M%S_%f")+"_"+source_path.name
+            target_path=image_dir/filename
+            shutil.copy2(source_path,target_path)
+            destination[field]=f"custom/{filename}"
+            self.text.delete("1.0","end")
+            self.text.insert("1.0",json.dumps(cases,ensure_ascii=False,indent=2))
+            messagebox.showinfo("Изображение добавлено",
+                f"Файл скопирован в assets/images/custom/\nПоле {field} обновлено.\nНажми «Проверить и сохранить расследования».",
+                parent=self)
+        except (OSError,ValueError,KeyError,StopIteration,IndexError,json.JSONDecodeError) as exc:
+            messagebox.showerror("Не удалось добавить изображение",str(exc),parent=self)
+
     def save(self):
-        import json
         try:
             cases=json.loads(self.text.get("1.0","end-1c"))
             if not isinstance(cases,list) or not cases: raise DataError("Ожидается непустой JSON-список.")
@@ -186,30 +258,38 @@ class MysteryGameApp(tk.Tk):
         s.map("TButton",background=[("active",colors.get("button_active","#a77c55"))])
 
     def _build_menu(self):
-        # Detective desktop: paper dossier cards are laid directly on a dark oak desk.
+        # Reuse the original detective-desk image as the full-screen menu background.
         self.menu_canvas=tk.Canvas(self.menu,bg="#30251d",highlightthickness=0)
         self.menu_canvas.place(relx=0,rely=0,relwidth=1,relheight=1)
-        self.menu_canvas.create_rectangle(12,12,988,688,fill="#4a3426",outline="#b08a5c",width=3)
-        self.menu_canvas.create_rectangle(22,22,978,678,fill="#38291f",outline="#806344",width=1)
-        self.menu_canvas.create_text(500,42,text="ANASTASIA DAYS",fill="#f0d5a7",font=("Georgia",25,"bold"))
-        self.menu_canvas.create_text(500,73,text="ЧАСТНОЕ ДЕТЕКТИВНОЕ АГЕНТСТВО  •  АРХИВ ДЕЛ",fill="#c5a77d",font=("Courier New",9,"bold"))
-        self.menu_canvas.create_line(55,91,945,91,fill="#9b7951",width=2)
-        self.menu_canvas.create_rectangle(55,112,945,570,fill="#26352e",outline="#b08a5c",width=2)
-        self.menu_canvas.create_text(500,137,text="АКТИВНЫЕ РАССЛЕДОВАНИЯ",fill="#ead6b8",font=("Courier New",13,"bold"))
+        self.menu_background_photo=self.image_assets.load_fit(
+            "branding/menu-background.jpg",(1100,760),centering=(0.5,0.5))
+        if self.menu_background_photo:
+            self.menu_canvas.create_image(500,350,image=self.menu_background_photo,anchor="center")
+        else:
+            self.menu_canvas.create_rectangle(0,0,1000,700,fill="#38291f",outline="")
+        self.menu_canvas.create_rectangle(28,22,700,100,fill="#2c211b",outline="#b08a5c",width=2)
+        self.menu_canvas.create_text(365,48,text="ANASTASIA DAYS",fill="#f0d5a7",font=("Georgia",25,"bold"))
+        self.menu_canvas.create_text(365,78,text="ЧАСТНОЕ ДЕТЕКТИВНОЕ АГЕНТСТВО  •  АРХИВ ДЕЛ",
+                                     fill="#c5a77d",font=("Courier New",9,"bold"))
+        self.menu_canvas.create_rectangle(28,118,700,652,fill="#26352e",outline="#b08a5c",width=2)
+        self.menu_canvas.create_text(364,140,text="АКТИВНЫЕ РАССЛЕДОВАНИЯ",
+                                     fill="#ead6b8",font=("Courier New",13,"bold"))
         self.dlc_cards=tk.Frame(self.menu_canvas,bg="#26352e")
-        self.menu_canvas.create_window(500,350,window=self.dlc_cards,width=820,height=390)
+        self.menu_canvas.create_window(364,390,window=self.dlc_cards,width=620,height=470)
         self.active_dlc_title=tk.Label(self.menu_canvas,text="Выбери папку с делом",bg="#26352e",fg="#f0d5a7",
-            font=("Georgia",13,"italic"),wraplength=700,justify="center")
-        self.menu_canvas.create_window(500,163,window=self.active_dlc_title)
-        self.menu_actions=tk.Frame(self.menu_canvas,bg="#38291f")
-        self.menu_canvas.create_window(500,620,window=self.menu_actions,width=850,height=72)
+            font=("Georgia",12,"italic"),wraplength=600,justify="center")
+        self.menu_canvas.create_window(364,166,window=self.active_dlc_title)
+        self.menu_canvas.create_rectangle(725,118,972,652,fill="#30231c",outline="#b08a5c",width=2)
+        self.menu_canvas.create_text(848,150,text="МЕНЮ",fill="#f0d5a7",font=("Georgia",17,"bold"))
+        self.menu_actions=tk.Frame(self.menu_canvas,bg="#30231c")
+        self.menu_canvas.create_window(848,390,window=self.menu_actions,width=220,height=410)
         for label,cmd in (("ЗАГРУЗКА",self.continue_game),("ОПЦИИ",self.open_settings),
                           ("ДОСКА РАСКРЫТЫХ ДЕЛ",self.show_board),("ВЫХОД",self.on_close)):
             tk.Button(self.menu_actions,text=label,command=cmd,relief="raised",bd=2,
                 bg="#e4d3b5",fg="#493426",activebackground="#f5e8d2",
-                font=("Georgia",10,"bold"),padx=18,pady=10,cursor="hand2").pack(side="left",padx=12)
+                font=("Georgia",10,"bold"),padx=10,pady=12,cursor="hand2",
+                wraplength=190).pack(fill="x",padx=6,pady=10)
         self._populate_dlc_list()
-
 
     def _populate_dlc_list(self):
         for child in self.dlc_cards.winfo_children(): child.destroy()
@@ -304,6 +384,9 @@ class MysteryGameApp(tk.Tk):
         self.document_art=ttk.Label(media,style="Background.TFrame",cursor="hand2")
         self.document_art.pack(side="left",expand=True,padx=5)
         self.document_art.bind("<Button-1>",lambda _e:self.open_evidence_viewer("document_image"))
+        self.item_art=ttk.Label(media,style="Background.TFrame",cursor="hand2")
+        self.item_art.pack(side="left",expand=True,padx=5)
+        self.item_art.bind("<Button-1>",lambda _e:self.open_evidence_viewer("item_image"))
         panel=ttk.LabelFrame(self.game,text="Текущая улика",padding=22); panel.pack(fill="both",expand=True,padx=24)
         self.task=ttk.Label(panel,text="",style="Task.TLabel",wraplength=760,justify="left"); self.task.pack(anchor="w",pady=(4,16))
         self.story=ttk.Label(panel,text="",style="Story.TLabel",wraplength=760,justify="left"); self.story.pack(anchor="w",pady=(0,18))
@@ -373,37 +456,77 @@ class MysteryGameApp(tk.Tk):
         self.active_save["case_title"]=case["title"]; self.persist(); self.show("game")
 
     def continue_game(self):
-        saves=[item for item in self.save_manager.list_saves() if not item.get("completed")]
+        saves=self.save_manager.list_saves()
         if not saves:
-            messagebox.showinfo("Нет сохранений","Нет незавершённых расследований.",parent=self)
+            messagebox.showinfo("Сохранения","Сохранений пока нет.",parent=self)
             return
-        if len(saves)==1:
-            item=saves[0]
-        else:
-            labels="\n".join(f"{i+1}. {x['name']} — {x.get('case_title',x['case_id'])} — {x.get('updated_at','')[:16]}" for i,x in enumerate(saves))
-            choice=simpledialog.askinteger("Продолжить расследование",f"Выбери сохранение:\\n{labels}",
-                                           minvalue=1,maxvalue=len(saves),parent=self)
-            if choice is None:return
-            item=saves[choice-1]
-        try:
-            self.active_save=self.save_manager.load(item["id"])
-            self.get_case()
-            # If the player left during a case briefing, resume that briefing first.
-            if self.active_save.get("intro_pending", False):
-                self.show("intro")
-            else:
-                self.show("game")
-        except SaveError as exc:
-            messagebox.showerror("Ошибка сохранения",str(exc),parent=self)
+        window=tk.Toplevel(self); window.title("Сохранения расследований"); window.geometry("700x470")
+        window.configure(bg="#e8dcc5"); window.transient(self)
+        tk.Label(window,text="АРХИВ СОХРАНЕНИЙ",bg="#e8dcc5",fg="#493426",
+                 font=("Courier New",15,"bold")).pack(pady=14)
+        listing=tk.Listbox(window,font=("Georgia",11),bg="#f4eddf",fg="#34271e",
+                           selectbackground="#8b6545",height=13)
+        listing.pack(fill="both",expand=True,padx=18,pady=8)
+        def refresh():
+            listing.delete(0,"end")
+            current=self.save_manager.list_saves()
+            for item in current:
+                status="ЗАВЕРШЕНО" if item.get("completed") else "В ПРОЦЕССЕ"
+                title=item.get("case_title",item.get("dlc_title",item.get("case_id","Дело")))
+                listing.insert("end",f"{item.get('name','Без названия')}  —  {title}  —  {status}  —  {item.get('updated_at','')[:16]}")
+        refresh()
+        buttons=tk.Frame(window,bg="#e8dcc5"); buttons.pack(fill="x",padx=18,pady=12)
+        def selected_save():
+            selection=listing.curselection()
+            if not selection:return None
+            values=self.save_manager.list_saves()
+            return values[selection[0]] if selection[0]<len(values) else None
+        def load_selected():
+            item=selected_save()
+            if not item:
+                messagebox.showwarning("Выбор сохранения","Сначала выбери сохранение.",parent=window); return
+            if item.get("completed"):
+                messagebox.showinfo("История завершена","Это сохранение уже завершено. Его можно удалить, но продолжить нельзя.",parent=window); return
+            try:
+                self.active_save=self.save_manager.load(item["id"])
+                self.get_case()
+                window.destroy()
+                if self.active_save.get("intro_pending",False): self.show("intro")
+                else: self.show("game")
+            except SaveError as exc:
+                messagebox.showerror("Ошибка сохранения",str(exc),parent=window)
+        def delete_selected():
+            item=selected_save()
+            if not item:
+                messagebox.showwarning("Удаление","Сначала выбери сохранение.",parent=window); return
+            if not messagebox.askyesno("Удалить сохранение",
+                f"Удалить «{item.get('name','Без названия')}»?\nЭто действие нельзя отменить.",parent=window):
+                return
+            try:
+                self.save_manager.delete(item["id"])
+                if self.active_save and self.active_save.get("id")==item["id"]:
+                    self.active_save=None
+                refresh()
+                messagebox.showinfo("Удалено","Сохранение удалено.",parent=window)
+                self.refresh_board()
+            except SaveError as exc:
+                messagebox.showerror("Ошибка удаления",str(exc),parent=window)
+        tk.Button(buttons,text="Загрузить",command=load_selected,bg="#76543a",fg="white",
+                  font=("Georgia",10,"bold"),padx=16,pady=8).pack(side="left",padx=5)
+        tk.Button(buttons,text="Удалить выбранное",command=delete_selected,bg="#9d493d",fg="white",
+                  font=("Georgia",10,"bold"),padx=16,pady=8).pack(side="left",padx=5)
+        tk.Button(buttons,text="Закрыть",command=window.destroy,bg="#d7c6a8",
+                  font=("Georgia",10,"bold"),padx=16,pady=8).pack(side="right",padx=5)
 
     def refresh_game(self):
         case=self.get_case(); i=self.active_save["current_clue"]
         if i>=len(case["clues"]): self.finish_case(); return
         clue=case["clues"][i]; self.case_title.configure(text=case["title"])
-        self._display_image(self.case_background,case.get("background_image"),(1000,700),"case_background")
+        self._display_image(self.case_background,clue.get("background_image") or case.get("background_image"),(1000,700),"case_background")
         self._display_image(self.case_art,case.get("cover_image"),(720,90),"case_art")
         self._display_image(self.clue_art,clue.get("illustration_image"),(300,120),"clue_art")
         self._display_image(self.document_art,clue.get("document_image") or case.get("document_image"),(300,120),"document_art")
+        self._display_image(self.item_art,clue.get("item_image"),(220,120),"item_art")
         quest_ids=self.active_save.get("quest_ids",[case["id"]])
         try: quest_number=quest_ids.index(case["id"])+1
         except ValueError: quest_number=1
