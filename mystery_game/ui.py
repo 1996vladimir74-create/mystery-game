@@ -216,7 +216,7 @@ class MysteryGameApp(tk.Tk):
         self._styles()
         root=ttk.Frame(self,style="Background.TFrame"); root.pack(fill="both",expand=True)
         root.rowconfigure(0,weight=1); root.columnconfigure(0,weight=1)
-        self.menu=ttk.Frame(root,style="Background.TFrame",padding=40)
+        self.menu=ttk.Frame(root,style="Background.TFrame",padding=0)
         self.game=ttk.Frame(root,style="Background.TFrame",padding=28)
         self.board=ttk.Frame(root,style="Background.TFrame",padding=28)
         self.case_intro=ttk.Frame(root,style="Background.TFrame",padding=28)
@@ -550,7 +550,7 @@ class MysteryGameApp(tk.Tk):
     def _display_image(self, widget, relative_path, size, ref_name):
         photo=self.image_assets.load(relative_path,size) if relative_path else None
         setattr(self,ref_name+"_photo",photo)
-        placeholders={"case_art":"ОБЛОЖКА ДЕЛА — добавь cover_image","clue_art":"ИЛЛЮСТРАЦИЯ УЛИКИ — добавь illustration_image","document_art":"ФОТО / ДОКУМЕНТ — добавь document_image"}
+        placeholders={"case_art":"ОБЛОЖКА ДЕЛА — добавь cover_image","clue_art":"ИЛЛЮСТРАЦИЯ УЛИКИ — добавь illustration_image","document_art":"ФОТО / ДОКУМЕНТ — добавь document_image","item_art":"ИЗОБРАЖЕНИЕ НАЙДЕННОГО ПРЕДМЕТА — добавь item_image"}
         widget.configure(image=photo if photo else "",text="" if photo else placeholders.get(ref_name,""))
 
     def submit_answer(self,raw):
