@@ -185,62 +185,57 @@ class MysteryGameApp(tk.Tk):
         s.map("TButton",background=[("active",colors.get("button_active","#a77c55"))])
 
     def _build_menu(self):
-        # The portrait artwork occupies the left side; the DLC launcher is a separate right panel.
-        bg=self.image_assets.load_fit(self.theme.get("images",{}).get("menu_background"),(530,700),centering=(0.5,0.22))
-        self.menu_art=tk.Label(self.menu,bg="#17231f",borderwidth=0)
-        if bg:
-            self.menu_art.configure(image=bg); self.menu_art.image=bg
-        self.menu_art.place(x=0,y=0,width=530,height=700)
-        self.active_dlc_title=tk.Label(
-            self.menu,text="Выбери историю справа",bg="#17231f",fg="#f0d5a7",
-            font=("Georgia",15,"bold"),wraplength=450,justify="left"
-        )
-        self.active_dlc_title.place(x=24,y=205,width=470)
-        self.menu_panel=tk.Frame(self.menu,bg="#172b28",highlightthickness=1,highlightbackground="#9b7951")
-        self.menu_panel.place(relx=0.53,rely=0,relwidth=0.47,relheight=1)
-        tk.Label(self.menu_panel,text="ИСТОРИИ  /  DLC",bg="#172b28",fg="#e8c99a",
-                 font=("Courier New",15,"bold")).pack(anchor="w",padx=24,pady=(38,12))
-        self.dlc_list=tk.Listbox(
-            self.menu_panel,bg="#20332f",fg="#f2eadf",selectbackground="#8b6545",
-            selectforeground="#fff7e8",font=("Georgia",12),relief="flat",
-            highlightthickness=1,highlightbackground="#8b765c",activestyle="none",
-            exportselection=False
-        )
-        self.dlc_list.pack(fill="x",padx=24,ipady=8)
-        self.dlc_list.bind("<<ListboxSelect>>",self._on_dlc_selected)
+        # Detective desktop: paper dossier cards are laid directly on a dark oak desk.
+        self.menu_canvas=tk.Canvas(self.menu,bg="#30251d",highlightthickness=0)
+        self.menu_canvas.place(relx=0,rely=0,relwidth=1,relheight=1)
+        self.menu_canvas.create_rectangle(12,12,988,688,fill="#4a3426",outline="#b08a5c",width=3)
+        self.menu_canvas.create_rectangle(22,22,978,678,fill="#38291f",outline="#806344",width=1)
+        self.menu_canvas.create_text(500,42,text="ANASTASIA DAYS",fill="#f0d5a7",font=("Georgia",25,"bold"))
+        self.menu_canvas.create_text(500,73,text="ЧАСТНОЕ ДЕТЕКТИВНОЕ АГЕНТСТВО  •  АРХИВ ДЕЛ",fill="#c5a77d",font=("Courier New",9,"bold"))
+        self.menu_canvas.create_line(55,91,945,91,fill="#9b7951",width=2)
+        self.menu_canvas.create_rectangle(55,112,945,570,fill="#26352e",outline="#b08a5c",width=2)
+        self.menu_canvas.create_text(500,137,text="АКТИВНЫЕ РАССЛЕДОВАНИЯ",fill="#ead6b8",font=("Courier New",13,"bold"))
+        self.dlc_cards=tk.Frame(self.menu_canvas,bg="#26352e")
+        self.menu_canvas.create_window(500,350,window=self.dlc_cards,width=820,height=390)
+        self.active_dlc_title=tk.Label(self.menu_canvas,text="Выбери папку с делом",bg="#26352e",fg="#f0d5a7",
+            font=("Georgia",13,"italic"),wraplength=700,justify="center")
+        self.menu_canvas.create_window(500,163,window=self.active_dlc_title)
+        self.menu_actions=tk.Frame(self.menu_canvas,bg="#38291f")
+        self.menu_canvas.create_window(500,620,window=self.menu_actions,width=850,height=72)
+        for label,cmd in (("ЗАГРУЗКА",self.continue_game),("ОПЦИИ",self.open_settings),
+                          ("ДОСКА РАСКРЫТЫХ ДЕЛ",self.show_board),("ВЫХОД",self.on_close)):
+            tk.Button(self.menu_actions,text=label,command=cmd,relief="raised",bd=2,
+                bg="#e4d3b5",fg="#493426",activebackground="#f5e8d2",
+                font=("Georgia",10,"bold"),padx=18,pady=10,cursor="hand2").pack(side="left",padx=12)
         self._populate_dlc_list()
-        ttk.Separator(self.menu_panel).pack(fill="x",padx=24,pady=(24,14))
-        actions=tk.Frame(self.menu_panel,bg="#172b28")
-        actions.pack(fill="x",padx=24)
-        for label,cmd in (
-            ("Загрузка",self.continue_game),
-            ("Опции",self.open_settings),
-            ("Доска раскрытых дел",self.show_board),
-            ("Выход",self.on_close)
-        ):
-            button=tk.Button(
-                actions,text=label,command=cmd,anchor="w",relief="flat",
-                bg="#263c36",fg="#f2eadf",activebackground="#8b6545",
-                activeforeground="#fff7e8",font=("Georgia",12),padx=14,pady=11,
-                cursor="hand2"
-            )
-            button.pack(fill="x",pady=5)
-        tk.Label(self.menu_panel,text="ANASTASIA DAYS  •  PRIVATE STORIES",
-                 bg="#172b28",fg="#b9a78d",font=("Courier New",8)).pack(side="bottom",pady=18)
+
 
     def _populate_dlc_list(self):
-        self.dlc_list.delete(0,"end")
-        for dlc in self.dlcs:
-            self.dlc_list.insert("end",dlc["title"])
-        if self.dlcs:
-            self.dlc_list.selection_clear(0,"end")
+        for child in self.dlc_cards.winfo_children(): child.destroy()
+        if not self.dlcs:
+            tk.Label(self.dlc_cards,text="Пока нет заведённых дел",bg="#26352e",fg="#ead6b8",
+                     font=("Georgia",14)).pack(pady=30)
+            return
+        for index,dlc in enumerate(self.dlcs):
+            card=tk.Frame(self.dlc_cards,bg="#e8dcc5",highlightthickness=3,
+                          highlightbackground="#c6a879" if index==0 else "#765b43",bd=1)
+            card.pack(side="left",fill="y",expand=True,padx=9,pady=10,ipadx=10,ipady=8)
+            tk.Label(card,text="▤  ПАПКА ДЕЛА",bg="#e8dcc5",fg="#6d5038",
+                     font=("Courier New",9,"bold")).pack(pady=(8,12))
+            tk.Label(card,text=dlc["title"],bg="#e8dcc5",fg="#34271e",
+                     font=("Georgia",12,"bold"),wraplength=190,justify="center").pack(padx=10,pady=8)
+            if index==0:
+                tk.Label(card,text="НОВОЕ ДЕЛО",bg="#9d493d",fg="#fff1df",
+                         font=("Courier New",8,"bold"),padx=7,pady=3).pack(pady=4)
+            tk.Label(card,text=dlc.get("description",""),bg="#e8dcc5",fg="#6b5b4b",
+                     font=("Georgia",9),wraplength=185,justify="center").pack(padx=8,pady=6)
+            tk.Button(card,text="ОТКРЫТЬ ДЕЛО",command=lambda item=dlc:self._on_dlc_selected(item),
+                bg="#76543a",fg="#fff5e7",activebackground="#a77c55",relief="raised",
+                font=("Georgia",9,"bold"),cursor="hand2").pack(pady=(12,8))
 
-    def _on_dlc_selected(self,_event=None):
-        selection=self.dlc_list.curselection()
-        if not selection:return
-        dlc=self.dlcs[selection[0]]
+    def _on_dlc_selected(self,dlc):
         self.active_dlc_title.configure(text=dlc["title"])
-        if messagebox.askyesno("Начать DLC",f"Начать историю «{dlc['title']}»?\n\nКвесты будут проходиться последовательно.",parent=self):
+        if messagebox.askyesno("Начать DLC",f"Начать историю «{dlc['title']}»?\\n\\nКвесты будут проходиться последовательно.",parent=self):
             self.start_dlc(dlc)
 
     def start_dlc(self,dlc):
