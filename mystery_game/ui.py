@@ -579,8 +579,7 @@ class MysteryGameApp(tk.Tk):
           "story":clue.get("story",""),"item_image":clue.get("item_image"),"clue_number":i+1,
           "case_id":self.active_save.get("case_id")})
         self.active_save["current_clue"]+=1; self.active_save["hints_used"]=0
-        if self.active_save["current_clue"]>=len(case["clues"]):self.finish_case()
-        else:self.persist()
+        self.persist()
         return True
 
     def check_answer(self):
@@ -592,13 +591,16 @@ class MysteryGameApp(tk.Tk):
         clue = self.get_case()["clues"][clue_index]
         if self.submit_answer(self.answer.get()):
             self.audio.effect("clue.wav")
-            if self.active_save and not self.active_save.get("completed") and self.active_save.get("case_id")==original_case_id:
-                discovery = clue.get("discovery_message") or (
-                    f"Улика «{clue.get('item_name', 'Найденный предмет')}» добавлена в инвентарь.\n\n"
-                    f"{clue.get('story', 'Расследование продолжается.')}"
-                )
-                self.show_discovery(clue, discovery)
-                self.refresh_game()
+            discovery = clue.get("discovery_message") or (
+                f"Улика «{clue.get('item_name', 'Найденный предмет')}» добавлена в инвентарь.\n\n"
+                f"{clue.get('story', 'Расследование продолжается.')}"
+            )
+            self.show_discovery(clue, discovery)
+            if self.active_save and self.active_save.get("case_id")==original_case_id:
+                if self.active_save["current_clue"] >= len(self.get_case()["clues"]):
+                    self.finish_case()
+                else:
+                    self.refresh_game()
         else:
             self.audio.effect("wrong.wav")
             messagebox.showwarning(
