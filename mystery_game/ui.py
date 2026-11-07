@@ -536,36 +536,41 @@ class MysteryGameApp(tk.Tk):
 
     def refresh_board(self):
         self.board_canvas.delete("all")
-        cases=self.save_manager.completed_cases()
         self.board_canvas.configure(bg="#76543a")
-        self.board_canvas.create_text(500,24,text="АРХИВ РАСКРЫТЫХ ДЕЛ",fill="#fff0d8",
-                                      font=("Courier New",16,"bold"))
-        if not cases:
+        self.board_canvas.create_text(500,24,text="ДОСКА РАСКРЫТЫХ ДЕЛ / СВЯЗИ УЛИК",
+                                      fill="#fff0d8",font=("Courier New",15,"bold"))
+        completed=self.save_manager.completed_cases()
+        if not completed:
             self.board_canvas.create_text(500,180,text="Пока нет закрытых дел. Первое расследование ждёт тебя!",
                                           fill="#fff0d8",font=("Georgia",14))
             return
-        # Evidence cards are connected as a visual case archive; each card opens its saved case summary.
-        positions=[]
-        width=220; height=118; gap=28
-        columns=max(1,min(3,(max(1,self.board_canvas.winfo_width()-40))//(width+gap)))
-        for index,item in enumerate(cases):
-            col=index%columns; row=index//columns
-            x=35+col*(width+gap); y=65+row*155
-            positions.append((x+width//2,y+height//2))
-        for index in range(1,len(positions)):
-            x1,y1=positions[index-1]; x2,y2=positions[index]
-            self.board_canvas.create_line(x1,y1,x2,y2,fill="#d5b98e",width=3)
-        for index,item in enumerate(cases):
-            col=index%columns; row=index//columns
-            x=35+col*(width+gap); y=65+row*155
-            self.board_canvas.create_rectangle(x+5,y+6,x+width+5,y+height+6,fill="#493426",outline="")
-            self.board_canvas.create_rectangle(x,y,x+width,y+height,fill="#eadfc9",outline="#3e2c20",width=2)
-            self.board_canvas.create_text(x+width//2,y+25,text="ДЕЛО РАСКРЫТО",fill="#8b493d",
-                                          font=("Courier New",9,"bold"))
-            self.board_canvas.create_text(x+width//2,y+58,text=item["name"],fill="#34271e",
-                                          font=("Georgia",11,"bold"),width=width-20,justify="center")
-            self.board_canvas.create_text(x+width//2,y+94,text=f"Закрыто: {item.get('completed_at','')[:10]}",
-                                          fill="#6b5b4b",font=("Georgia",8))
+        saves=[item for item in self.save_manager.list_saves() if item.get("completed")]
+        evidence_by_case={}
+        for save in saves:
+            ids=save.get("completed_case_ids") or [save.get("case_id")]
+            for case_id in ids:
+                evidence_by_case.setdefault(case_id,[])
+                for evidence in save.get("inventory",[]):
+                    if evidence not in evidence_by_case[case_id]:
+                        evidence_by_case[case_id].append(evidence)
+        x_positions=[170,500,830]
+        for index,item in enumerate(completed):
+            x=x_positions[index%3]; y=100+(index//3)*250
+            # A case dossier is the hub; collected evidence is pinned below and connected to it.
+            self.board_canvas.create_rectangle(x-115,y-42,x+115,y+42,fill="#eadfc9",outline="#3e2c20",width=2)
+            self.board_canvas.create_text(x,y-17,text="ДЕЛО РАСКРЫТО",fill="#8b493d",font=("Courier New",9,"bold"))
+            self.board_canvas.create_text(x,y+10,text=item["name"],fill="#34271e",
+                                          font=("Georgia",10,"bold"),width=205,justify="center")
+            evidence=evidence_by_case.get(item["case_id"],[])
+            for n,entry in enumerate(evidence[:4]):
+                ex=x-95+(n%2)*190; ey=y+92+(n//2)*65
+                self.board_canvas.create_line(x,y+42,ex,ey-18,fill="#e1c18e",width=2)
+                self.board_canvas.create_oval(ex-7,ey-7,ex+7,ey+7,fill="#a64e43",outline="#f3e4c9")
+                self.board_canvas.create_rectangle(ex-86,ey-16,ex+86,ey+17,fill="#f2e7d3",outline="#70563d")
+                self.board_canvas.create_text(ex,ey,text=entry.get("name","Улика"),fill="#34271e",
+                                              font=("Georgia",9),width=160)
+            self.board_canvas.create_text(x,y+210,text=f"Закрыто: {item.get('completed_at','')[:10]}",
+                                          fill="#fff0d8",font=("Georgia",8))
 
     def back_to_menu(self):self.persist();self.show("menu")
     def show_board(self):self.show("board")
