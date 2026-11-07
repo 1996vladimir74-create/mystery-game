@@ -70,6 +70,22 @@ class SaveManagerTests(unittest.TestCase):
             with self.assertRaises(SaveError):
                 manager.load("../outside")
 
+    def test_delete_save_slot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = SaveManager(tmp)
+            save = manager.create("Удаляемое дело", "case-one")
+            path = Path(tmp) / f"{save['id']}.json"
+            self.assertTrue(path.exists())
+            manager.delete(save["id"])
+            self.assertFalse(path.exists())
+            self.assertEqual(manager.list_saves(), [])
+
+    def test_delete_missing_save_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manager = SaveManager(tmp)
+            with self.assertRaises(SaveError):
+                manager.delete("deadbeef")
+
     def test_corrupt_save_is_skipped_in_listing_and_rejected_on_load(self):
         with tempfile.TemporaryDirectory() as tmp:
             manager = SaveManager(tmp)
