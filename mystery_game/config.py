@@ -21,6 +21,7 @@ else:
     DLCS_FILE = DATA_DIR / "dlcs.json"
 
 ASSETS_DIR = RESOURCE_DIR / "assets"
+USER_IMAGES_DIR = (USER_DATA_DIR / "assets" / "images" / "custom") if IS_FROZEN else (ASSETS_DIR / "images" / "custom")
 THEME_FILE = ASSETS_DIR / "theme.json"
 SOUNDS_DIR = ASSETS_DIR / "sounds"
 BUNDLED_INVESTIGATIONS_FILE = DATA_DIR / "investigations.json"
