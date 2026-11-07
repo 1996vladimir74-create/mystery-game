@@ -47,7 +47,7 @@ class DataManager:
             if (not isinstance(answers, list) or not answers
                     or any(not isinstance(x, str) or not x.strip() or not normalize_answer(x) for x in answers)):
                 raise DataError(f"Улика №{i}: answers должен быть непустым списком строк.")
-            for field in ("illustration_image", "document_image", "item_image"):
+            for field in ("background_image", "illustration_image", "document_image", "item_image"):
                 if field in clue and clue[field] is not None and not isinstance(clue[field], str):
                     raise DataError(f"Улика №{i}: поле {field} должно быть строкой с относительным путём к изображению.")
             hints = clue.get("hints", [])
