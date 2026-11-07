@@ -147,8 +147,9 @@ class MysteryGameApp(tk.Tk):
         self.menu=ttk.Frame(root,style="Background.TFrame",padding=40)
         self.game=ttk.Frame(root,style="Background.TFrame",padding=28)
         self.board=ttk.Frame(root,style="Background.TFrame",padding=28)
-        for frame in (self.menu,self.game,self.board): frame.grid(row=0,column=0,sticky="nsew")
-        self._build_menu(); self._build_game(); self._build_board()
+        self.case_intro=ttk.Frame(root,style="Background.TFrame",padding=28)
+        for frame in (self.menu,self.game,self.board,self.case_intro): frame.grid(row=0,column=0,sticky="nsew")
+        self._build_menu(); self._build_game(); self._build_board(); self._build_case_intro()
         self._animation_job=None; self._animation_phase=False; self.show("menu"); self.audio.music(); self.protocol("WM_DELETE_WINDOW",self.on_close)
 
     def _load_theme(self):
@@ -251,6 +252,37 @@ class MysteryGameApp(tk.Tk):
             dlc_id=dlc["id"],dlc_title=dlc["title"],quest_ids=quest_ids,
             completed_case_ids=[],completed_case_titles={},case_title=first["title"]
         )
+        self.active_save["intro_pending"]=True
+        self.persist()
+        self.show("intro")
+
+    def _build_case_intro(self):
+        top=ttk.Frame(self.case_intro,style="Background.TFrame"); top.pack(fill="x")
+        ttk.Button(top,text="← В меню",command=self.back_to_menu).pack(side="left")
+        ttk.Label(self.case_intro,text="НОВОЕ ДЕЛО / CASE BRIEFING",style="Eyebrow.TLabel").pack(pady=(35,10))
+        self.intro_title=ttk.Label(self.case_intro,text="",style="Hero.TLabel",wraplength=850)
+        self.intro_title.pack(pady=8)
+        self.intro_image=ttk.Label(self.case_intro,style="Background.TFrame")
+        self.intro_image.pack(pady=12)
+        self.intro_description=ttk.Label(self.case_intro,text="",style="Story.TLabel",wraplength=760,
+                                         justify="center")
+        self.intro_description.pack(padx=60,pady=20)
+        self.intro_meta=ttk.Label(self.case_intro,text="",style="Subtitle.TLabel")
+        self.intro_meta.pack(pady=8)
+        ttk.Button(self.case_intro,text="НАЧАТЬ РАССЛЕДОВАНИЕ",command=self.begin_case).pack(pady=20)
+
+    def refresh_case_intro(self):
+        case=self.get_case()
+        self.intro_title.configure(text=case["title"])
+        self.intro_description.configure(text=case.get("description","Материалы дела ожидают изучения."))
+        self.intro_meta.configure(text=f"ДЕЛО {self.active_save.get('quest_ids',[case['id']]).index(case['id'])+1} ИЗ {len(self.active_save.get('quest_ids',[case['id']]))}")
+        image_path=case.get("cover_image") or case.get("illustration_image") or case.get("background_image")
+        photo=self.image_assets.load_fit(image_path,(650,300),centering=(0.5,0.5)) if image_path else None
+        self.intro_image.configure(image=photo if photo else "",text="" if photo else "ФОТОГРАФИЯ / ОБЛОЖКА ДЕЛА")
+        self.intro_image.image=photo
+
+    def begin_case(self):
+        self.active_save["intro_pending"]=False
         self.persist()
         self.show("game")
 
@@ -264,8 +296,12 @@ class MysteryGameApp(tk.Tk):
         self.progress=ttk.Label(self.game,text="",style="Subtitle.TLabel"); self.progress.pack(pady=(0,10))
         self.case_art=ttk.Label(self.game,style="Background.TFrame"); self.case_art.pack(pady=(0,8))
         media=ttk.Frame(self.game,style="Background.TFrame"); media.pack(fill="x",padx=24,pady=(0,8))
-        self.clue_art=ttk.Label(media,style="Background.TFrame"); self.clue_art.pack(side="left",expand=True,padx=5)
-        self.document_art=ttk.Label(media,style="Background.TFrame"); self.document_art.pack(side="left",expand=True,padx=5)
+        self.clue_art=ttk.Label(media,style="Background.TFrame",cursor="zoom-in")
+        self.clue_art.pack(side="left",expand=True,padx=5)
+        self.clue_art.bind("<Button-1>",lambda _e:self.open_evidence_viewer("illustration_image"))
+        self.document_art=ttk.Label(media,style="Background.TFrame",cursor="zoom-in")
+        self.document_art.pack(side="left",expand=True,padx=5)
+        self.document_art.bind("<Button-1>",lambda _e:self.open_evidence_viewer("document_image"))
         panel=ttk.LabelFrame(self.game,text="Текущая улика",padding=22); panel.pack(fill="both",expand=True,padx=24)
         self.task=ttk.Label(panel,text="",style="Task.TLabel",wraplength=760,justify="left"); self.task.pack(anchor="w",pady=(4,16))
         self.story=ttk.Label(panel,text="",style="Story.TLabel",wraplength=760,justify="left"); self.story.pack(anchor="w",pady=(0,18))
@@ -291,11 +327,12 @@ class MysteryGameApp(tk.Tk):
         self.board_inner.bind("<Configure>",lambda _e:self.board_canvas.configure(scrollregion=self.board_canvas.bbox("all")))
 
     def show(self,name):
-        {"menu":self.menu,"game":self.game,"board":self.board}[name].tkraise()
+        {"menu":self.menu,"game":self.game,"board":self.board,"intro":self.case_intro}[name].tkraise()
         if name=="menu":
             self._start_menu_animation()
         else: self._stop_menu_animation()
         if name=="game" and self.active_save:self.refresh_game()
+        if name=="intro" and self.active_save:self.refresh_case_intro()
         if name=="board":self.refresh_board()
 
     def _start_menu_animation(self):
@@ -361,11 +398,25 @@ class MysteryGameApp(tk.Tk):
         self._display_image(self.case_art,case.get("cover_image"),(720,90),"case_art")
         self._display_image(self.clue_art,clue.get("illustration_image"),(300,120),"clue_art")
         self._display_image(self.document_art,clue.get("document_image") or case.get("document_image"),(300,120),"document_art")
-        self.progress.configure(text=f"УЛИКА {i+1} ИЗ {len(case['clues'])}")
+        quest_ids=self.active_save.get("quest_ids",[case["id"]])
+        try: quest_number=quest_ids.index(case["id"])+1
+        except ValueError: quest_number=1
+        self.progress.configure(text=f"РАССЛЕДОВАНИЕ {quest_number} ИЗ {len(quest_ids)}   •   УЛИКА {i+1} ИЗ {len(case['clues'])}")
         self.task.configure(text=clue["task"]); self.story.configure(text=clue.get("story",""))
         self.answer.set(""); self.hint_label.configure(text="")
         self.inventory_summary.configure(text=f"Найдено предметов: {len(self.active_save.get('inventory',[]))}")
         self.entry.focus_set()
+
+    def open_evidence_viewer(self, field):
+        case=self.get_case(); clue=case["clues"][self.active_save["current_clue"]]
+        path=clue.get(field) or (case.get("document_image") if field=="document_image" else None)
+        photo=self.image_assets.load(path,(900,650)) if path else None
+        window=tk.Toplevel(self); window.title("Материалы дела — просмотр")
+        window.configure(bg="#201b17"); window.geometry("940x720")
+        label=tk.Label(window,image=photo,bg="#201b17",fg="#ead6b8",
+                       text="Изображение для этой улики пока не добавлено." if photo is None else "")
+        label.image=photo; label.pack(fill="both",expand=True,padx=15,pady=15)
+        tk.Button(window,text="Закрыть",command=window.destroy,bg="#e4d3b5").pack(pady=10)
 
     def _display_image(self, widget, relative_path, size, ref_name):
         photo=self.image_assets.load(relative_path,size) if relative_path else None
@@ -445,7 +496,9 @@ class MysteryGameApp(tk.Tk):
                 f"«{case['title']}» завершено.\n\nСледующий квест: «{next_case['title']}».\n\n{case.get('final_letter','')}",
                 parent=self
             )
-            self.show("game")
+            self.active_save["intro_pending"]=True
+            self.persist()
+            self.show("intro")
             return
         self.active_save["completed"]=True
         self.active_save["case_title"]=self.active_save.get("dlc_title",case["title"])
