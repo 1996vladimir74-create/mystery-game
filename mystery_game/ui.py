@@ -323,10 +323,10 @@ class MysteryGameApp(tk.Tk):
         ttk.Button(top,text="← В меню",command=self.back_to_menu).pack(side="left")
         ttk.Label(self.board,text="ДОСКА РАСКРЫТЫХ ДЕЛ",style="Hero.TLabel").pack(pady=24)
         self.board_canvas=tk.Canvas(self.board,bg="#9a7048",highlightthickness=0)
-        self.board_canvas.pack(fill="both",expand=True,padx=10,pady=10)
-        self.board_inner=ttk.Frame(self.board_canvas)
-        self.board_canvas.create_window((12,12),window=self.board_inner,anchor="nw")
-        self.board_inner.bind("<Configure>",lambda _e:self.board_canvas.configure(scrollregion=self.board_canvas.bbox("all")))
+        board_scroll=ttk.Scrollbar(self.board,orient="vertical",command=self.board_canvas.yview)
+        self.board_canvas.configure(yscrollcommand=board_scroll.set)
+        board_scroll.pack(side="right",fill="y",padx=(0,10),pady=10)
+        self.board_canvas.pack(side="left",fill="both",expand=True,padx=10,pady=10)
 
     def show(self,name):
         {"menu":self.menu,"game":self.game,"board":self.board,"intro":self.case_intro}[name].tkraise()
