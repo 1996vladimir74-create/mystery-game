@@ -170,6 +170,16 @@ class SaveManager:
                 continue
         return sorted(result, key=lambda x: x.get("updated_at", ""), reverse=True)
 
+    def delete(self, slot_id):
+        """Delete one save slot by its validated identifier."""
+        path = self._path(slot_id)
+        try:
+            path.unlink()
+        except FileNotFoundError as exc:
+            raise SaveError("Это сохранение уже удалено.") from exc
+        except OSError as exc:
+            raise SaveError(f"Не удалось удалить сохранение: {exc}") from exc
+
     def latest_incomplete(self):
         return next((x for x in self.list_saves() if not x.get("completed")), None)
 
