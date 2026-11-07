@@ -8,8 +8,9 @@ class ImageAssets:
 
     ALLOWED_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 
-    def __init__(self, assets_dir):
+    def __init__(self, assets_dir, user_images_dir=None):
         self.root = (Path(assets_dir) / "images").resolve()
+        self.user_root = Path(user_images_dir).resolve() if user_images_dir else (self.root / "custom")
         self._cache = {}
 
     def resolve(self, relative_path):
@@ -18,9 +19,15 @@ class ImageAssets:
         candidate = Path(relative_path.strip())
         if candidate.is_absolute() or candidate.suffix.lower() not in self.ALLOWED_SUFFIXES:
             return None
-        resolved = (self.root / candidate).resolve()
+        if candidate.parts and candidate.parts[0] == "user_custom":
+            relative = Path(*candidate.parts[1:])
+            root = self.user_root
+        else:
+            relative = candidate
+            root = self.root
+        resolved = (root / relative).resolve()
         try:
-            resolved.relative_to(self.root)
+            resolved.relative_to(root)
         except ValueError:
             return None
         return resolved if resolved.is_file() else None
