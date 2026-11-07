@@ -143,6 +143,16 @@ class ImageAssetPathTests(unittest.TestCase):
             assets = ImageAssets(Path(tmp) / "assets")
             self.assertIsNone(assets.resolve("items/camera.svg"))
 
+    def test_resolves_user_added_image_from_writable_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "assets"
+            user_images = Path(tmp) / "user-data" / "custom-images"
+            user_images.mkdir(parents=True)
+            image_file = user_images / "clue.png"
+            image_file.write_bytes(b"placeholder")
+            assets = ImageAssets(root, user_images)
+            self.assertEqual(assets.resolve("user_custom/clue.png"), image_file.resolve())
+
 
 class DLCManagerTests(unittest.TestCase):
     def test_newest_dlc_is_sorted_first(self):
