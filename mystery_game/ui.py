@@ -298,10 +298,10 @@ class MysteryGameApp(tk.Tk):
         self.progress=ttk.Label(self.game,text="",style="Subtitle.TLabel"); self.progress.pack(pady=(0,10))
         self.case_art=ttk.Label(self.game,style="Background.TFrame"); self.case_art.pack(pady=(0,8))
         media=ttk.Frame(self.game,style="Background.TFrame"); media.pack(fill="x",padx=24,pady=(0,8))
-        self.clue_art=ttk.Label(media,style="Background.TFrame",cursor="zoom-in")
+        self.clue_art=ttk.Label(media,style="Background.TFrame",cursor="hand2")
         self.clue_art.pack(side="left",expand=True,padx=5)
         self.clue_art.bind("<Button-1>",lambda _e:self.open_evidence_viewer("illustration_image"))
-        self.document_art=ttk.Label(media,style="Background.TFrame",cursor="zoom-in")
+        self.document_art=ttk.Label(media,style="Background.TFrame",cursor="hand2")
         self.document_art.pack(side="left",expand=True,padx=5)
         self.document_art.bind("<Button-1>",lambda _e:self.open_evidence_viewer("document_image"))
         panel=ttk.LabelFrame(self.game,text="Текущая улика",padding=22); panel.pack(fill="both",expand=True,padx=24)
@@ -388,7 +388,11 @@ class MysteryGameApp(tk.Tk):
         try:
             self.active_save=self.save_manager.load(item["id"])
             self.get_case()
-            self.show("game")
+            # If the player left during a case briefing, resume that briefing first.
+            if self.active_save.get("intro_pending", False):
+                self.show("intro")
+            else:
+                self.show("game")
         except SaveError as exc:
             messagebox.showerror("Ошибка сохранения",str(exc),parent=self)
 
@@ -544,6 +548,7 @@ class MysteryGameApp(tk.Tk):
         if not completed:
             self.board_canvas.create_text(500,180,text="Пока нет закрытых дел. Первое расследование ждёт тебя!",
                                           fill="#fff0d8",font=("Georgia",14))
+            self.board_canvas.configure(scrollregion=self.board_canvas.bbox("all"))
             return
         saves=[item for item in self.save_manager.list_saves() if item.get("completed")]
         evidence_by_case={}
@@ -554,24 +559,31 @@ class MysteryGameApp(tk.Tk):
                 for evidence in save.get("inventory",[]):
                     if evidence.get("case_id", case_id)==case_id and evidence not in evidence_by_case[case_id]:
                         evidence_by_case[case_id].append(evidence)
-        x_positions=[170,500,830]
-        for index,item in enumerate(completed):
-            x=x_positions[index%3]; y=100+(index//3)*250
-            # A case dossier is the hub; collected evidence is pinned below and connected to it.
-            self.board_canvas.create_rectangle(x-115,y-42,x+115,y+42,fill="#eadfc9",outline="#3e2c20",width=2)
-            self.board_canvas.create_text(x,y-17,text="ДЕЛО РАСКРЫТО",fill="#8b493d",font=("Courier New",9,"bold"))
-            self.board_canvas.create_text(x,y+10,text=item["name"],fill="#34271e",
-                                          font=("Georgia",10,"bold"),width=205,justify="center")
+
+        # One dossier per row; evidence is laid out in three columns with no item limit.
+        y=100
+        x_positions=[190,500,810]
+        for item in completed:
             evidence=evidence_by_case.get(item["case_id"],[])
-            for n,entry in enumerate(evidence[:4]):
-                ex=x-95+(n%2)*190; ey=y+92+(n//2)*65
-                self.board_canvas.create_line(x,y+42,ex,ey-18,fill="#e1c18e",width=2)
+            rows=max(1,(len(evidence)+2)//3)
+            self.board_canvas.create_rectangle(365,y-42,635,y+42,fill="#eadfc9",outline="#3e2c20",width=2)
+            self.board_canvas.create_text(500,y-17,text="ДЕЛО РАСКРЫТО",fill="#8b493d",font=("Courier New",9,"bold"))
+            self.board_canvas.create_text(500,y+10,text=item["name"],fill="#34271e",
+                                          font=("Georgia",10,"bold"),width=245,justify="center")
+            for n,entry in enumerate(evidence):
+                ex=x_positions[n%3]
+                ey=y+105+(n//3)*58
+                self.board_canvas.create_line(500,y+42,ex,ey-19,fill="#e1c18e",width=2)
                 self.board_canvas.create_oval(ex-7,ey-7,ex+7,ey+7,fill="#a64e43",outline="#f3e4c9")
                 self.board_canvas.create_rectangle(ex-86,ey-16,ex+86,ey+17,fill="#f2e7d3",outline="#70563d")
                 self.board_canvas.create_text(ex,ey,text=entry.get("name","Улика"),fill="#34271e",
                                               font=("Georgia",9),width=160)
-            self.board_canvas.create_text(x,y+210,text=f"Закрыто: {item.get('completed_at','')[:10]}",
-                                          fill="#fff0d8",font=("Georgia",8))
+            footer_y=y+105+(rows-1)*58+42
+            self.board_canvas.create_text(500,footer_y,
+                text=f"Найдено улик: {len(evidence)}   •   Закрыто: {item.get('completed_at','')[:10]}",
+                fill="#fff0d8",font=("Georgia",8))
+            y=footer_y+85
+        self.board_canvas.configure(scrollregion=self.board_canvas.bbox("all"))
 
     def back_to_menu(self):self.persist();self.show("menu")
     def show_board(self):self.show("board")
