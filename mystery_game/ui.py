@@ -384,9 +384,6 @@ class MysteryGameApp(tk.Tk):
         self.document_art=ttk.Label(media,style="Background.TFrame",cursor="hand2")
         self.document_art.pack(side="left",expand=True,padx=5)
         self.document_art.bind("<Button-1>",lambda _e:self.open_evidence_viewer("document_image"))
-        self.item_art=ttk.Label(media,style="Background.TFrame",cursor="hand2")
-        self.item_art.pack(side="left",expand=True,padx=5)
-        self.item_art.bind("<Button-1>",lambda _e:self.open_evidence_viewer("item_image"))
         panel=ttk.LabelFrame(self.game,text="Текущая улика",padding=22); panel.pack(fill="both",expand=True,padx=24)
         self.task=ttk.Label(panel,text="",style="Task.TLabel",wraplength=760,justify="left"); self.task.pack(anchor="w",pady=(4,16))
         self.story=ttk.Label(panel,text="",style="Story.TLabel",wraplength=760,justify="left"); self.story.pack(anchor="w",pady=(0,18))
@@ -526,7 +523,6 @@ class MysteryGameApp(tk.Tk):
         self._display_image(self.case_art,case.get("cover_image"),(720,90),"case_art")
         self._display_image(self.clue_art,clue.get("illustration_image"),(300,120),"clue_art")
         self._display_image(self.document_art,clue.get("document_image") or case.get("document_image"),(300,120),"document_art")
-        self._display_image(self.item_art,clue.get("item_image"),(220,120),"item_art")
         quest_ids=self.active_save.get("quest_ids",[case["id"]])
         try: quest_number=quest_ids.index(case["id"])+1
         except ValueError: quest_number=1
@@ -550,8 +546,28 @@ class MysteryGameApp(tk.Tk):
     def _display_image(self, widget, relative_path, size, ref_name):
         photo=self.image_assets.load(relative_path,size) if relative_path else None
         setattr(self,ref_name+"_photo",photo)
-        placeholders={"case_art":"ОБЛОЖКА ДЕЛА — добавь cover_image","clue_art":"ИЛЛЮСТРАЦИЯ УЛИКИ — добавь illustration_image","document_art":"ФОТО / ДОКУМЕНТ — добавь document_image","item_art":"ИЗОБРАЖЕНИЕ НАЙДЕННОГО ПРЕДМЕТА — добавь item_image"}
+        placeholders={"case_art":"ОБЛОЖКА ДЕЛА — добавь cover_image","clue_art":"ИЛЛЮСТРАЦИЯ УЛИКИ — добавь illustration_image","document_art":"ФОТО / ДОКУМЕНТ — добавь document_image"}
         widget.configure(image=photo if photo else "",text="" if photo else placeholders.get(ref_name,""))
+
+    def show_discovery(self, clue, discovery):
+        window=tk.Toplevel(self); window.title("Новая находка"); window.geometry("720x620")
+        window.configure(bg="#e8dcc5"); window.transient(self)
+        tk.Label(window,text="УЛИКА ДОБАВЛЕНА В ДОСЬЕ",bg="#e8dcc5",fg="#493426",
+                 font=("Courier New",15,"bold")).pack(pady=14)
+        path=clue.get("item_image")
+        photo=self.image_assets.load(path,(620,360)) if path else None
+        image_label=tk.Label(window,image=photo,bg="#e8dcc5",fg="#493426",
+            text="Изображение найденного предмета не добавлено." if photo is None else "",
+            font=("Georgia",11))
+        image_label.image=photo; image_label.pack(fill="both",expand=True,padx=18,pady=8)
+        tk.Label(window,text=clue.get("item_name","Найденный предмет"),bg="#e8dcc5",fg="#493426",
+                 font=("Georgia",14,"bold")).pack(pady=5)
+        tk.Label(window,text=discovery,bg="#e8dcc5",fg="#493426",wraplength=650,
+                 justify="center",font=("Georgia",11)).pack(padx=22,pady=8)
+        tk.Button(window,text="Продолжить расследование",command=window.destroy,
+                  bg="#76543a",fg="white",font=("Georgia",10,"bold"),padx=18,pady=9).pack(pady=14)
+        window.grab_set()
+        self.wait_window(window)
 
     def submit_answer(self,raw):
         case=self.get_case(); i=self.active_save["current_clue"]; clue=case["clues"][i]
@@ -581,7 +597,7 @@ class MysteryGameApp(tk.Tk):
                     f"Улика «{clue.get('item_name', 'Найденный предмет')}» добавлена в инвентарь.\n\n"
                     f"{clue.get('story', 'Расследование продолжается.')}"
                 )
-                messagebox.showinfo("Улика найдена", discovery, parent=self)
+                self.show_discovery(clue, discovery)
                 self.refresh_game()
         else:
             self.audio.effect("wrong.wav")
