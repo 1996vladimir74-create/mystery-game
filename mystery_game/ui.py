@@ -128,13 +128,13 @@ class EditorWindow(tk.Toplevel):
             else:
                 clue_index=int(self.clue_var.get().split("№")[-1])-1
                 destination=cases[case_index]["clues"][clue_index]
-            image_dir=ASSETS_DIR/"images"/"custom"
+            image_dir=USER_IMAGES_DIR
             image_dir.mkdir(parents=True,exist_ok=True)
             source_path=Path(source)
             filename=datetime.now().strftime("%Y%m%d_%H%M%S_%f")+"_"+source_path.name
             target_path=image_dir/filename
             shutil.copy2(source_path,target_path)
-            destination[field]=f"custom/{filename}"
+            destination[field]=f"user_custom/{filename}"
             self.text.delete("1.0","end")
             self.text.insert("1.0",json.dumps(cases,ensure_ascii=False,indent=2))
             messagebox.showinfo("Изображение добавлено",
@@ -210,7 +210,7 @@ class MysteryGameApp(tk.Tk):
         except DataError as exc:
             messagebox.showerror("Ошибка DLC",str(exc)); self.destroy(); raise
         self.save_manager=SaveManager(SAVES_DIR); self.settings=self.save_manager.load_settings()
-        self.theme=self._load_theme(); self.image_assets=ImageAssets(ASSETS_DIR)
+        self.theme=self._load_theme(); self.image_assets=ImageAssets(ASSETS_DIR, USER_IMAGES_DIR)
         self.configure(bg=self.theme.get("colors",{}).get("window","#18212a"))
         self.audio=AudioManager(SOUNDS_DIR,self.settings); self.active_save=None
         self._styles()
