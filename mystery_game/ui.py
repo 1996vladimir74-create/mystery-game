@@ -291,7 +291,9 @@ class MysteryGameApp(tk.Tk):
         self.case_background.place(relx=0,rely=0,relwidth=1,relheight=1); self.case_background.lower()
         head=ttk.Frame(self.game,style="Background.TFrame"); head.pack(fill="x")
         self.case_title=ttk.Label(head,text="",style="Eyebrow.TLabel"); self.case_title.pack(side="left")
-        ttk.Button(head,text="В меню",command=self.back_to_menu).pack(side="right")
+        ttk.Button(head,text="В меню",command=self.back_to_menu).pack(side="right",padx=(8,0))
+        ttk.Button(head,text="Блокнот",command=self.show_notebook).pack(side="right",padx=5)
+        ttk.Button(head,text="Материалы",command=self.show_inventory).pack(side="right",padx=5)
         ttk.Label(self.game,text="ДОСЬЕ РАССЛЕДОВАНИЯ",style="Hero.TLabel").pack(pady=(18,4))
         self.progress=ttk.Label(self.game,text="",style="Subtitle.TLabel"); self.progress.pack(pady=(0,10))
         self.case_art=ttk.Label(self.game,style="Background.TFrame"); self.case_art.pack(pady=(0,8))
@@ -472,6 +474,26 @@ class MysteryGameApp(tk.Tk):
 
     def show_inventory(self):InventoryWindow(self,self.active_save.get("inventory",[]),self.image_assets)
 
+    def show_notebook(self):
+        window=tk.Toplevel(self); window.title("Блокнот расследования"); window.geometry("620x560")
+        window.configure(bg="#e8dcc5")
+        tk.Label(window,text="ЗАМЕТКИ ДЕТЕКТИВА",bg="#e8dcc5",fg="#493426",
+                 font=("Courier New",16,"bold")).pack(pady=16)
+        body=tk.Text(window,wrap="word",font=("Georgia",11),bg="#f4eddf",fg="#34271e",
+                     relief="flat",padx=18,pady=14)
+        body.pack(fill="both",expand=True,padx=18,pady=10)
+        case=self.get_case()
+        body.insert("end",f"ДЕЛО: {case['title']}\\n")
+        body.insert("end",f"ИСТОРИЯ: {self.active_save.get('dlc_title',case['title'])}\\n\\n")
+        body.insert("end","НАЙДЕННЫЕ МАТЕРИАЛЫ\\n"+"—"*32+"\\n")
+        inventory=self.active_save.get("inventory",[])
+        if not inventory: body.insert("end","Пока нет собранных улик.\\n")
+        for item in inventory:
+            body.insert("end",f"\\n{item.get('icon','•')} {item.get('name','Улика')}\\n")
+            body.insert("end",f"{item.get('description','')}\\n{item.get('story','')}\\n")
+        body.configure(state="disabled")
+        tk.Button(window,text="Закрыть блокнот",command=window.destroy,bg="#76543a",fg="white").pack(pady=12)
+
     def finish_case(self):
         case=self.get_case()
         completed_ids=self.active_save.setdefault("completed_case_ids",[])
@@ -513,14 +535,37 @@ class MysteryGameApp(tk.Tk):
             except SaveError as exc:messagebox.showerror("Ошибка сохранения",str(exc),parent=self)
 
     def refresh_board(self):
-        for child in self.board_inner.winfo_children():child.destroy()
+        self.board_canvas.delete("all")
         cases=self.save_manager.completed_cases()
-        if not cases:ttk.Label(self.board_inner,text="Пока нет закрытых дел. Первое расследование ждёт тебя!").pack(padx=30,pady=30);return
-        for item in cases:
-            card=ttk.LabelFrame(self.board_inner,text="📌 ДОСЬЕ ЗАКРЫТО",padding=18);card.pack(side="left",padx=12,pady=12,anchor="n")
-            ttk.Label(card,text=item["name"],font=("Courier New",12,"bold"),wraplength=210).pack(pady=5)
-            ttk.Label(card,text=f"Завершено: {item.get('completed_at','')[:10]}").pack()
-            ttk.Label(card,text="✓ Дело раскрыто").pack(pady=5)
+        self.board_canvas.configure(bg="#76543a")
+        self.board_canvas.create_text(500,24,text="АРХИВ РАСКРЫТЫХ ДЕЛ",fill="#fff0d8",
+                                      font=("Courier New",16,"bold"))
+        if not cases:
+            self.board_canvas.create_text(500,180,text="Пока нет закрытых дел. Первое расследование ждёт тебя!",
+                                          fill="#fff0d8",font=("Georgia",14))
+            return
+        # Evidence cards are connected as a visual case archive; each card opens its saved case summary.
+        positions=[]
+        width=220; height=118; gap=28
+        columns=max(1,min(3,(max(1,self.board_canvas.winfo_width()-40))//(width+gap)))
+        for index,item in enumerate(cases):
+            col=index%columns; row=index//columns
+            x=35+col*(width+gap); y=65+row*155
+            positions.append((x+width//2,y+height//2))
+        for index in range(1,len(positions)):
+            x1,y1=positions[index-1]; x2,y2=positions[index]
+            self.board_canvas.create_line(x1,y1,x2,y2,fill="#d5b98e",width=3)
+        for index,item in enumerate(cases):
+            col=index%columns; row=index//columns
+            x=35+col*(width+gap); y=65+row*155
+            self.board_canvas.create_rectangle(x+5,y+6,x+width+5,y+height+6,fill="#493426",outline="")
+            self.board_canvas.create_rectangle(x,y,x+width,y+height,fill="#eadfc9",outline="#3e2c20",width=2)
+            self.board_canvas.create_text(x+width//2,y+25,text="ДЕЛО РАСКРЫТО",fill="#8b493d",
+                                          font=("Courier New",9,"bold"))
+            self.board_canvas.create_text(x+width//2,y+58,text=item["name"],fill="#34271e",
+                                          font=("Georgia",11,"bold"),width=width-20,justify="center")
+            self.board_canvas.create_text(x+width//2,y+94,text=f"Закрыто: {item.get('completed_at','')[:10]}",
+                                          fill="#6b5b4b",font=("Georgia",8))
 
     def back_to_menu(self):self.persist();self.show("menu")
     def show_board(self):self.show("board")
