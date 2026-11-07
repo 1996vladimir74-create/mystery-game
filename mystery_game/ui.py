@@ -433,7 +433,8 @@ class MysteryGameApp(tk.Tk):
         if not normalized or normalized not in valid:return False
         self.active_save.setdefault("inventory",[]).append({"name":clue.get("item_name",f"Улика №{i+1}"),
           "icon":clue.get("icon","🔎"),"description":clue.get("item_description",clue.get("story","")),
-          "story":clue.get("story",""),"item_image":clue.get("item_image"),"clue_number":i+1})
+          "story":clue.get("story",""),"item_image":clue.get("item_image"),"clue_number":i+1,
+          "case_id":self.active_save.get("case_id")})
         self.active_save["current_clue"]+=1; self.active_save["hints_used"]=0
         if self.active_save["current_clue"]>=len(case["clues"]):self.finish_case()
         else:self.persist()
@@ -551,7 +552,7 @@ class MysteryGameApp(tk.Tk):
             for case_id in ids:
                 evidence_by_case.setdefault(case_id,[])
                 for evidence in save.get("inventory",[]):
-                    if evidence not in evidence_by_case[case_id]:
+                    if evidence.get("case_id", case_id)==case_id and evidence not in evidence_by_case[case_id]:
                         evidence_by_case[case_id].append(evidence)
         x_positions=[170,500,830]
         for index,item in enumerate(completed):
