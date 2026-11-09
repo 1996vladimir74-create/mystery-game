@@ -265,7 +265,7 @@ class MysteryGameApp(tk.Tk):
         self.menu_background_photo=self.image_assets.load_fit(
             "branding/main-menu.jpg",(1100,619),centering=(0.5,0.5))
         if self.menu_background_photo:
-            self.menu_canvas.create_image(550,309,image=self.menu_background_photo,anchor="center")
+            self.menu_canvas.create_image(550,309,image=self.menu_background_photo,anchor="center",tags="menu_background")
         else:
             self.menu_canvas.create_rectangle(0,0,1100,619,fill="#17211d",outline="")
             self.menu_canvas.create_text(550,285,
