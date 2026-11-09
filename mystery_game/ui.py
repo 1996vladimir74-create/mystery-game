@@ -276,13 +276,16 @@ class MysteryGameApp(tk.Tk):
         self._populate_dlc_list()
 
     def _resize_menu_background(self,_event=None):
-        if not getattr(self,"menu_background_photo",None):
+        width=max(1,self.menu_canvas.winfo_width())
+        height=max(1,self.menu_canvas.winfo_height())
+        photo=self.image_assets.load_fit(
+            "branding/main-menu.jpg",(width,height),centering=(0.5,0.5))
+        if photo is None:
             return
+        self.menu_background_photo=photo
         self.menu_canvas.delete("menu_background")
-        self.menu_canvas.create_image(
-            self.menu_canvas.winfo_width()/2,
-            self.menu_canvas.winfo_height()/2,
-            image=self.menu_background_photo,anchor="center",tags="menu_background")
+        self.menu_canvas.create_image(width/2,height/2,image=photo,
+            anchor="center",tags="menu_background")
         self.menu_canvas.tag_lower("menu_background")
 
     def _on_menu_click(self,event):
