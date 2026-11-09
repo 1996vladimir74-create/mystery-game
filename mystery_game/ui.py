@@ -258,61 +258,103 @@ class MysteryGameApp(tk.Tk):
         s.map("TButton",background=[("active",colors.get("button_active","#a77c55"))])
 
     def _build_menu(self):
-        # Reuse the original detective-desk image as the full-screen menu background.
-        self.menu_canvas=tk.Canvas(self.menu,bg="#30251d",highlightthickness=0)
+        # The supplied 16:9 artwork is the complete visual composition.
+        # Interactive hit areas are handled separately so the artwork stays unobstructed.
+        self.menu_canvas=tk.Canvas(self.menu,bg="#17211d",highlightthickness=0)
         self.menu_canvas.place(relx=0,rely=0,relwidth=1,relheight=1)
         self.menu_background_photo=self.image_assets.load_fit(
-            "branding/menu-background.jpg",(1100,760),centering=(0.5,0.5))
+            "branding/main-menu.jpg",(1100,619),centering=(0.5,0.5))
         if self.menu_background_photo:
-            self.menu_canvas.create_image(500,350,image=self.menu_background_photo,anchor="center")
+            self.menu_canvas.create_image(550,309,image=self.menu_background_photo,anchor="center")
         else:
-            self.menu_canvas.create_rectangle(0,0,1000,700,fill="#38291f",outline="")
-        self.menu_canvas.create_rectangle(28,22,700,100,fill="#2c211b",outline="#b08a5c",width=2)
-        self.menu_canvas.create_text(365,48,text="ANASTASIA DAYS",fill="#f0d5a7",font=("Georgia",25,"bold"))
-        self.menu_canvas.create_text(365,78,text="ЧАСТНОЕ ДЕТЕКТИВНОЕ АГЕНТСТВО  •  АРХИВ ДЕЛ",
-                                     fill="#c5a77d",font=("Courier New",9,"bold"))
-        self.menu_canvas.create_rectangle(28,118,700,652,fill="#26352e",outline="#b08a5c",width=2)
-        self.menu_canvas.create_text(364,140,text="АКТИВНЫЕ РАССЛЕДОВАНИЯ",
-                                     fill="#ead6b8",font=("Courier New",13,"bold"))
-        self.dlc_cards=tk.Frame(self.menu_canvas,bg="#26352e")
-        self.menu_canvas.create_window(364,390,window=self.dlc_cards,width=620,height=470)
-        self.active_dlc_title=tk.Label(self.menu_canvas,text="Выбери папку с делом",bg="#26352e",fg="#f0d5a7",
-            font=("Georgia",12,"italic"),wraplength=600,justify="center")
-        self.menu_canvas.create_window(364,166,window=self.active_dlc_title)
-        self.menu_canvas.create_rectangle(725,118,972,652,fill="#30231c",outline="#b08a5c",width=2)
-        self.menu_canvas.create_text(848,150,text="МЕНЮ",fill="#f0d5a7",font=("Georgia",17,"bold"))
-        self.menu_actions=tk.Frame(self.menu_canvas,bg="#30231c")
-        self.menu_canvas.create_window(848,390,window=self.menu_actions,width=220,height=410)
-        for label,cmd in (("ЗАГРУЗКА",self.continue_game),("ОПЦИИ",self.open_settings),
-                          ("ДОСКА РАСКРЫТЫХ ДЕЛ",self.show_board),("ВЫХОД",self.on_close)):
-            tk.Button(self.menu_actions,text=label,command=cmd,relief="raised",bd=2,
-                bg="#e4d3b5",fg="#493426",activebackground="#f5e8d2",
-                font=("Georgia",10,"bold"),padx=10,pady=12,cursor="hand2",
-                wraplength=190).pack(fill="x",padx=6,pady=10)
+            self.menu_canvas.create_rectangle(0,0,1100,619,fill="#17211d",outline="")
+            self.menu_canvas.create_text(550,285,
+                text="Фоновое изображение не найдено\\nassets/images/branding/main-menu.jpg",
+                fill="#f0d5a7",font=("Georgia",16),justify="center")
+        self.menu_canvas.bind("<Button-1>",self._on_menu_click)
+        self.menu_canvas.bind("<Configure>",self._resize_menu_background)
         self._populate_dlc_list()
 
-    def _populate_dlc_list(self):
-        for child in self.dlc_cards.winfo_children(): child.destroy()
-        if not self.dlcs:
-            tk.Label(self.dlc_cards,text="Пока нет заведённых дел",bg="#26352e",fg="#ead6b8",
-                     font=("Georgia",14)).pack(pady=30)
+    def _resize_menu_background(self,_event=None):
+        if not getattr(self,"menu_background_photo",None):
             return
+        self.menu_canvas.delete("menu_background")
+        self.menu_canvas.create_image(
+            self.menu_canvas.winfo_width()/2,
+            self.menu_canvas.winfo_height()/2,
+            image=self.menu_background_photo,anchor="center",tags="menu_background")
+        self.menu_canvas.tag_lower("menu_background")
+
+    def _on_menu_click(self,event):
+        width=max(1,self.menu_canvas.winfo_width())
+        height=max(1,self.menu_canvas.winfo_height())
+        x=event.x*1100/width
+        y=event.y*619/height
+
+        # Right-side parchment buttons in the supplied artwork.
+        if 820 <= x <= 1060:
+            if 155 <= y < 235:
+                self.continue_game()
+            elif 235 <= y < 305:
+                self.open_settings()
+            elif 305 <= y < 382:
+                self.show_board()
+            elif 382 <= y < 465:
+                self.on_close()
+            return
+
+        # Folder title and the bottom "choose a case" strip.
+        if 105 <= x <= 360 and (205 <= y <= 300 or y >= 535):
+            self._open_dlc_picker()
+
+    def _open_dlc_picker(self):
+        if not self.dlcs:
+            messagebox.showinfo("Архив дел","Пока нет доступных расследований.",parent=self)
+            return
+        picker=tk.Toplevel(self)
+        picker.title("Папка с расследованиями")
+        picker.geometry("520x420")
+        picker.transient(self)
+        picker.grab_set()
+        picker.configure(bg="#e8dcc5")
+        tk.Label(picker,text="АРХИВ РАССЛЕДОВАНИЙ",bg="#e8dcc5",fg="#493426",
+                 font=("Georgia",17,"bold")).pack(pady=(18,8))
+        tk.Label(picker,text="Выбери папку, чтобы начать историю",bg="#e8dcc5",fg="#6b5b4b",
+                 font=("Georgia",10)).pack(pady=(0,10))
+        body=tk.Frame(picker,bg="#e8dcc5")
+        body.pack(fill="both",expand=True,padx=18,pady=8)
+        scrollbar=tk.Scrollbar(body)
+        scrollbar.pack(side="right",fill="y")
+        listing=tk.Listbox(body,yscrollcommand=scrollbar.set,exportselection=False,
+            font=("Georgia",12),bg="#f3e8d2",fg="#34271e",
+            selectbackground="#8b6545",selectforeground="#fff5e7",
+            relief="flat",highlightthickness=1,highlightbackground="#b08a5c")
+        listing.pack(side="left",fill="both",expand=True)
+        scrollbar.configure(command=listing.yview)
         for index,dlc in enumerate(self.dlcs):
-            card=tk.Frame(self.dlc_cards,bg="#e8dcc5",highlightthickness=3,
-                          highlightbackground="#c6a879" if index==0 else "#765b43",bd=1)
-            card.pack(side="left",fill="y",expand=True,padx=9,pady=10,ipadx=10,ipady=8)
-            tk.Label(card,text="▤  ПАПКА ДЕЛА",bg="#e8dcc5",fg="#6d5038",
-                     font=("Courier New",9,"bold")).pack(pady=(8,12))
-            tk.Label(card,text=dlc["title"],bg="#e8dcc5",fg="#34271e",
-                     font=("Georgia",12,"bold"),wraplength=190,justify="center").pack(padx=10,pady=8)
-            if index==0:
-                tk.Label(card,text="НОВОЕ ДЕЛО",bg="#9d493d",fg="#fff1df",
-                         font=("Courier New",8,"bold"),padx=7,pady=3).pack(pady=4)
-            tk.Label(card,text=dlc.get("description",""),bg="#e8dcc5",fg="#6b5b4b",
-                     font=("Georgia",9),wraplength=185,justify="center").pack(padx=8,pady=6)
-            tk.Button(card,text="ОТКРЫТЬ ДЕЛО",command=lambda item=dlc:self._on_dlc_selected(item),
-                bg="#76543a",fg="#fff5e7",activebackground="#a77c55",relief="raised",
-                font=("Georgia",9,"bold"),cursor="hand2").pack(pady=(12,8))
+            marker="  • НОВОЕ ДЕЛО" if index==0 else ""
+            listing.insert("end",f"{dlc['title']}{marker}")
+        listing.selection_set(0)
+        listing.activate(0)
+        def open_selected(_event=None):
+            selection=listing.curselection()
+            if not selection:
+                return
+            dlc=self.dlcs[selection[0]]
+            picker.destroy()
+            self._on_dlc_selected(dlc)
+        listing.bind("<Double-Button-1>",open_selected)
+        buttons=tk.Frame(picker,bg="#e8dcc5")
+        buttons.pack(fill="x",padx=18,pady=(4,16))
+        tk.Button(buttons,text="ОТКРЫТЬ ДЕЛО",command=open_selected,
+            bg="#76543a",fg="#fff5e7",activebackground="#a77c55",
+            font=("Georgia",10,"bold"),relief="raised",padx=14,pady=8).pack(side="left")
+        tk.Button(buttons,text="ОТМЕНА",command=picker.destroy,
+            bg="#d7c5a8",fg="#493426",font=("Georgia",10),padx=14,pady=8).pack(side="right")
+
+    def _populate_dlc_list(self):
+        # DLC data is shown in the folder picker; the menu artwork remains unobstructed.
+        return
 
     def _on_dlc_selected(self,dlc):
         self.active_dlc_title.configure(text=dlc["title"])
