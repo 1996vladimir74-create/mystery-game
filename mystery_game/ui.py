@@ -196,7 +196,7 @@ class DLCEditorWindow(tk.Toplevel):
 
 class MysteryGameApp(tk.Tk):
     def __init__(self):
-        super().__init__(); self.title(APP_TITLE); self.geometry(WINDOW_SIZE); self.minsize(820,600)
+        super().__init__(); self.title(APP_TITLE); self.geometry(WINDOW_SIZE); self.minsize(1000,562)
         self.configure(bg="#18212a")
         for folder in (DATA_DIR,ASSETS_DIR,SOUNDS_DIR,SAVES_DIR): folder.mkdir(parents=True,exist_ok=True)
         ensure_default(INVESTIGATIONS_FILE, BUNDLED_INVESTIGATIONS_FILE)
@@ -258,126 +258,207 @@ class MysteryGameApp(tk.Tk):
         s.map("TButton",background=[("active",colors.get("button_active","#a77c55"))])
 
     def _build_menu(self):
-        # The supplied 16:9 artwork is the complete visual composition.
-        # Interactive hit areas are handled separately so the artwork stays unobstructed.
-        self.menu_canvas=tk.Canvas(self.menu,bg="#17211d",highlightthickness=0)
-        self.menu_canvas.place(relx=0,rely=0,relwidth=1,relheight=1)
-        self.menu_background_photo=self.image_assets.load_fit(
-            "branding/main-menu.jpg",(1100,619),centering=(0.5,0.5))
+        # The supplied artwork is the complete 16:9 menu composition.
+        # Clickable regions are transparent and mapped to the visible paper buttons.
+        self.menu_canvas = tk.Canvas(
+            self.menu, bg="#17211d", highlightthickness=0, cursor="arrow"
+        )
+        self.menu_canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.menu_background_photo = self.image_assets.load_fit(
+            "branding/main-menu.jpg", (1100, 619), centering=(0.5, 0.5)
+        )
         if self.menu_background_photo:
-            self.menu_canvas.create_image(550,309,image=self.menu_background_photo,anchor="center",tags="menu_background")
+            self.menu_canvas.create_image(
+                550, 309, image=self.menu_background_photo,
+                anchor="center", tags="menu_background"
+            )
         else:
-            self.menu_canvas.create_rectangle(0,0,1100,619,fill="#17211d",outline="")
-            self.menu_canvas.create_text(550,285,
-                text="Фоновое изображение не найдено\\nassets/images/branding/main-menu.jpg",
-                fill="#f0d5a7",font=("Georgia",16),justify="center")
-        self.menu_canvas.bind("<Button-1>",self._on_menu_click)
-        self.menu_canvas.bind("<Configure>",self._resize_menu_background)
+            self.menu_canvas.create_rectangle(
+                0, 0, 1100, 619, fill="#17211d", outline=""
+            )
+            self.menu_canvas.create_text(
+                550, 285,
+                text="Фоновое изображение не найдено\\n"
+                     "assets/images/branding/main-menu.jpg",
+                fill="#f0d5a7", font=("Georgia", 16), justify="center"
+            )
+        self.menu_canvas.bind("<Button-1>", self._on_menu_click)
+        self.menu_canvas.bind("<Motion>", self._on_menu_motion)
+        self.menu_canvas.bind("<Configure>", self._resize_menu_background)
         self._populate_dlc_list()
 
-    def _resize_menu_background(self,_event=None):
-        width=max(1,self.menu_canvas.winfo_width())
-        height=max(1,self.menu_canvas.winfo_height())
-        photo=self.image_assets.load_fit(
-            "branding/main-menu.jpg",(width,height),centering=(0.5,0.5))
+    def _resize_menu_background(self, _event=None):
+        width = max(1, self.menu_canvas.winfo_width())
+        height = max(1, self.menu_canvas.winfo_height())
+        photo = self.image_assets.load_fit(
+            "branding/main-menu.jpg", (width, height), centering=(0.5, 0.5)
+        )
         if photo is None:
             return
-        self.menu_background_photo=photo
+        self.menu_background_photo = photo
         self.menu_canvas.delete("menu_background")
-        self.menu_canvas.create_image(width/2,height/2,image=photo,
-            anchor="center",tags="menu_background")
+        self.menu_canvas.create_image(
+            width / 2, height / 2, image=photo,
+            anchor="center", tags="menu_background"
+        )
         self.menu_canvas.tag_lower("menu_background")
 
-    def _on_menu_click(self,event):
-        width=max(1,self.menu_canvas.winfo_width())
-        height=max(1,self.menu_canvas.winfo_height())
-        x=event.x*1100/width
-        y=event.y*619/height
-
-        # Right-side parchment buttons in the supplied artwork.
+    @staticmethod
+    def _menu_action_at(x, y):
+        # Coordinates refer to the 1100x619 reference artwork.
         if 820 <= x <= 1060:
             if 155 <= y < 235:
-                self.continue_game()
-            elif 235 <= y < 305:
-                self.open_settings()
-            elif 305 <= y < 382:
-                self.show_board()
-            elif 382 <= y < 465:
-                self.on_close()
-            return
+                return "saves"
+            if 235 <= y < 305:
+                return "settings"
+            if 305 <= y < 382:
+                return "board"
+            if 382 <= y < 465:
+                return "exit"
+        # Paper folder and the bottom paper instruction both open the DLC archive.
+        if 115 <= x <= 355 and 205 <= y <= 300:
+            return "dlcs"
+        if 45 <= x <= 310 and 535 <= y <= 600:
+            return "dlcs"
+        return None
 
-        # Folder title and the bottom "choose a case" strip.
-        if 105 <= x <= 360 and (205 <= y <= 300 or y >= 535):
+    def _menu_canvas_coordinates(self, event):
+        width = max(1, self.menu_canvas.winfo_width())
+        height = max(1, self.menu_canvas.winfo_height())
+        return event.x * 1100 / width, event.y * 619 / height
+
+    def _on_menu_motion(self, event):
+        x, y = self._menu_canvas_coordinates(event)
+        self.menu_canvas.configure(cursor="hand2" if self._menu_action_at(x, y) else "arrow")
+
+    def _on_menu_click(self, event):
+        x, y = self._menu_canvas_coordinates(event)
+        action = self._menu_action_at(x, y)
+        if action == "saves":
+            self.continue_game()
+        elif action == "settings":
+            self.open_settings()
+        elif action == "board":
+            self.show_board()
+        elif action == "exit":
+            self.on_close()
+        elif action == "dlcs":
             self._open_dlc_picker()
 
     def _open_dlc_picker(self):
         if not self.dlcs:
-            messagebox.showinfo("Архив дел","Пока нет доступных расследований.",parent=self)
+            messagebox.showinfo(
+                "Архив дел", "Пока нет доступных расследований.", parent=self
+            )
             return
-        picker=tk.Toplevel(self)
+        picker = tk.Toplevel(self)
         picker.title("Папка с расследованиями")
-        picker.geometry("520x420")
+        picker.geometry("540x440")
         picker.transient(self)
         picker.grab_set()
         picker.configure(bg="#e8dcc5")
-        tk.Label(picker,text="АРХИВ РАССЛЕДОВАНИЙ",bg="#e8dcc5",fg="#493426",
-                 font=("Georgia",17,"bold")).pack(pady=(18,8))
-        tk.Label(picker,text="Выбери папку, чтобы начать историю",bg="#e8dcc5",fg="#6b5b4b",
-                 font=("Georgia",10)).pack(pady=(0,10))
-        body=tk.Frame(picker,bg="#e8dcc5")
-        body.pack(fill="both",expand=True,padx=18,pady=8)
-        scrollbar=tk.Scrollbar(body)
-        scrollbar.pack(side="right",fill="y")
-        listing=tk.Listbox(body,yscrollcommand=scrollbar.set,exportselection=False,
-            font=("Georgia",12),bg="#f3e8d2",fg="#34271e",
-            selectbackground="#8b6545",selectforeground="#fff5e7",
-            relief="flat",highlightthickness=1,highlightbackground="#b08a5c")
-        listing.pack(side="left",fill="both",expand=True)
+        tk.Label(
+            picker, text="АРХИВ РАССЛЕДОВАНИЙ", bg="#e8dcc5", fg="#493426",
+            font=("Georgia", 17, "bold")
+        ).pack(pady=(18, 8))
+        tk.Label(
+            picker, text="Выбери папку, чтобы начать историю",
+            bg="#e8dcc5", fg="#6b5b4b", font=("Georgia", 10)
+        ).pack(pady=(0, 10))
+        body = tk.Frame(picker, bg="#e8dcc5")
+        body.pack(fill="both", expand=True, padx=18, pady=8)
+        scrollbar = tk.Scrollbar(body)
+        scrollbar.pack(side="right", fill="y")
+        listing = tk.Listbox(
+            body, yscrollcommand=scrollbar.set, exportselection=False,
+            font=("Georgia", 12), bg="#f3e8d2", fg="#34271e",
+            selectbackground="#8b6545", selectforeground="#fff5e7",
+            relief="flat", highlightthickness=1, highlightbackground="#b08a5c"
+        )
+        listing.pack(side="left", fill="both", expand=True)
         scrollbar.configure(command=listing.yview)
-        for index,dlc in enumerate(self.dlcs):
-            marker="  • НОВОЕ ДЕЛО" if index==0 else ""
-            listing.insert("end",f"{dlc['title']}{marker}")
+        newest = max(
+            range(len(self.dlcs)),
+            key=lambda i: str(self.dlcs[i].get("added_at", "")),
+            default=-1
+        )
+        for index, dlc in enumerate(self.dlcs):
+            marker = "  • НОВОЕ ДЕЛО" if index == newest else ""
+            listing.insert("end", f"{dlc.get('title', 'Без названия')}{marker}")
         listing.selection_set(0)
         listing.activate(0)
+
         def open_selected(_event=None):
-            selection=listing.curselection()
+            selection = listing.curselection()
             if not selection:
+                messagebox.showwarning(
+                    "Выбор дела", "Сначала выбери расследование.", parent=picker
+                )
                 return
-            dlc=self.dlcs[selection[0]]
+            dlc = self.dlcs[selection[0]]
             picker.destroy()
             self._on_dlc_selected(dlc)
-        listing.bind("<Double-Button-1>",open_selected)
-        buttons=tk.Frame(picker,bg="#e8dcc5")
-        buttons.pack(fill="x",padx=18,pady=(4,16))
-        tk.Button(buttons,text="ОТКРЫТЬ ДЕЛО",command=open_selected,
-            bg="#76543a",fg="#fff5e7",activebackground="#a77c55",
-            font=("Georgia",10,"bold"),relief="raised",padx=14,pady=8).pack(side="left")
-        tk.Button(buttons,text="ОТМЕНА",command=picker.destroy,
-            bg="#d7c5a8",fg="#493426",font=("Georgia",10),padx=14,pady=8).pack(side="right")
+
+        listing.bind("<Double-Button-1>", open_selected)
+        buttons = tk.Frame(picker, bg="#e8dcc5")
+        buttons.pack(fill="x", padx=18, pady=(4, 16))
+        tk.Button(
+            buttons, text="ОТКРЫТЬ ДЕЛО", command=open_selected,
+            bg="#76543a", fg="#fff5e7", activebackground="#a77c55",
+            font=("Georgia", 10, "bold"), relief="raised", padx=14, pady=8
+        ).pack(side="left")
+        tk.Button(
+            buttons, text="ОТМЕНА", command=picker.destroy,
+            bg="#d7c5a8", fg="#493426", font=("Georgia", 10),
+            padx=14, pady=8
+        ).pack(side="right")
 
     def _populate_dlc_list(self):
-        # DLC data is shown in the folder picker; the menu artwork remains unobstructed.
+        # DLC names are rendered in the folder picker, not over the artwork.
         return
 
-    def _on_dlc_selected(self,dlc):
-        self.active_dlc_title.configure(text=dlc["title"])
-        if messagebox.askyesno("Начать DLC",f"Начать историю «{dlc['title']}»?\\n\\nКвесты будут проходиться последовательно.",parent=self):
+    def _on_dlc_selected(self, dlc):
+        title = dlc.get("title", "Без названия")
+        if messagebox.askyesno(
+            "Начать дело",
+            f"Начать историю «{title}»?\\n\\n"
+            "Квесты будут проходиться последовательно.",
+            parent=self
+        ):
             self.start_dlc(dlc)
 
-    def start_dlc(self,dlc):
-        cases={case["id"]:case for case in self.cases}
-        quest_ids=list(dlc["quests"])
-        first=cases[quest_ids[0]]
-        name=simpledialog.askstring("Новая история","Название сохранения:",initialvalue=dlc["title"],parent=self)
-        if not name or not name.strip():
-            self.dlc_list.selection_clear(0,"end")
+    def start_dlc(self, dlc):
+        cases = {case["id"]: case for case in self.cases}
+        quest_ids = list(dlc.get("quests", []))
+        if not quest_ids:
+            messagebox.showerror(
+                "Пустое расследование",
+                f"В истории «{dlc.get('title', 'Без названия')}» нет квестов.",
+                parent=self
+            )
             return
-        self.active_save=self.save_manager.create(name.strip(),first["id"])
-        self.active_save.update(
-            dlc_id=dlc["id"],dlc_title=dlc["title"],quest_ids=quest_ids,
-            completed_case_ids=[],completed_case_titles={},case_title=first["title"]
+        missing = [quest_id for quest_id in quest_ids if quest_id not in cases]
+        if missing:
+            messagebox.showerror(
+                "Ошибка цепочки DLC",
+                "Не найдены ID расследований: " + ", ".join(missing),
+                parent=self
+            )
+            return
+        first = cases[quest_ids[0]]
+        name = simpledialog.askstring(
+            "Новая история", "Название сохранения:",
+            initialvalue=dlc.get("title", "Новое расследование"), parent=self
         )
-        self.active_save["intro_pending"]=True
+        if not name or not name.strip():
+            return
+        self.active_save = self.save_manager.create(name.strip(), first["id"])
+        self.active_save.update(
+            dlc_id=dlc["id"], dlc_title=dlc.get("title", ""),
+            quest_ids=quest_ids, completed_case_ids=[],
+            completed_case_titles={}, case_title=first["title"]
+        )
+        self.active_save["intro_pending"] = True
         self.persist()
         self.show("intro")
 
